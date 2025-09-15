@@ -1,53 +1,72 @@
-# 🎯 Casos de Uso Avançados - Stellar Ads SDK
+# Casos de Uso Avançados - Stellar Ads SDK
 
-**Para desenvolvedores experientes**  
-**Versão**: 1.0.0  
-**Data**: 15 de setembro de 2025
+## Índice
+1. [Single Page Applications (SPA)](#single-page-applications-spa)
+2. [Progressive Web Apps (PWA)](#progressive-web-apps-pwa)
+3. [E-commerce Avançado](#e-commerce-avançado)
+4. [Sistema de Afiliados](#sistema-de-afiliados)
+5. [Gaming e Gamificação](#gaming-e-gamificação)
+6. [Streaming e Conteúdo ao Vivo](#streaming-e-conteúdo-ao-vivo)
+7. [Mobile-First Implementation](#mobile-first-implementation)
+8. [Multi-tenant/White Label](#multi-tenantwhite-label)
+9. [Integração com CMS](#integração-com-cms)
+10. [Analytics Avançados](#analytics-avançados)
 
-## 📋 Índice
+## Single Page Applications (SPA)
 
-1. [Integração com Frameworks](#integração-com-frameworks)
-2. [Casos de Uso por Setor](#casos-de-uso-por-setor)
-3. [Configurações Enterprise](#configurações-enterprise)
-4. [Otimizações Avançadas](#otimizações-avançadas)
-5. [Monetização Estratégica](#monetização-estratégica)
-
----
-
-## ⚡ Integração com Frameworks
-
-### React.js Component
+### React.js Integration
 
 ```jsx
-import React, { useEffect, useRef, useState } from 'react';
+// components/StellarAdsProvider.jsx
+import React, { createContext, useContext, useEffect, useState } from 'react';
 
-const StellarAdsComponent = ({ 
-    siteId, 
-    tags = [], 
-    theme = 'light',
-    onRewardEarned,
-    className = ''
-}) => {
-    const containerRef = useRef(null);
-    const [rewards, setRewards] = useState(0);
-    const [isLoaded, setIsLoaded] = useState(false);
+const StellarAdsContext = createContext();
+
+export const StellarAdsProvider = ({ children, config }) => {
+    const [sdk, setSdk] = useState(null);
+    const [isInitialized, setIsInitialized] = useState(false);
+    const [userRewards, setUserRewards] = useState(0);
 
     useEffect(() => {
-        // Configurar SDK
-        const config = {
-            siteId,
-            tags,
-            theme,
-            containerId: containerRef.current?.id,
-            onAdLoaded: (adData) => {
-                setIsLoaded(true);
-                console.log('Ad loaded:', adData);
-            },
-            onRewardEarned: (rewardData) => {
-                setRewards(prev => prev + rewardData.amount);
-                onRewardEarned?.(rewardData);
+        const initializeSDK = async () => {
+            if (window.StellarAdsSDK) {
+                const sdkInstance = window.StellarAdsSDK;
+                
+                await sdkInstance.init({
+                    ...config,
+                    onRewardEarned: (reward) => {
+                        setUserRewards(prev => prev + parseFloat(reward.amount));
+                        config.onRewardEarned?.(reward);
+                    }
+                });
+                
+                setSdk(sdkInstance);
+                setIsInitialized(true);
             }
         };
+
+        initializeSDK();
+    }, [config]);
+
+    return (
+        <StellarAdsContext.Provider value={{
+            sdk,
+            isInitialized,
+            userRewards,
+            setUserRewards
+        }}>
+            {children}
+        </StellarAdsContext.Provider>
+    );
+};
+
+export const useStellarAds = () => {
+    const context = useContext(StellarAdsContext);
+    if (!context) {
+        throw new Error('useStellarAds must be used within StellarAdsProvider');
+    }
+    return context;
+};
 
         // Aplicar configuração globalmente
         window.StellarAdsConfig = config;
