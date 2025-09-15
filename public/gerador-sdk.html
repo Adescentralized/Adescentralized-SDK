@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>🚀 Gerador de SDK - Stellar Ads</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        line-height: 1.6;
+        color: #333;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        min-height: 100vh;
+      }
+
+      .container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+
+      .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 40px;
+        border-radius: 15px;
+        text-align: center;
+        margin-bottom: 30px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      }
+
+      .header h1 {
+        font-size: 3em;
+        margin-bottom: 10px;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+      }
+
+      .header p {
+        font-size: 1.3em;
+        opacity: 0.95;
+        max-width: 600px;
+        margin: 0 auto;
+      }
+
+      .main-content {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 30px;
+        margin-bottom: 30px;
+      }
+
+      .configurator {
+        background: white;
+        border-radius: 15px;
+        padding: 30px;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+      }
+
+      .preview {
+        background: white;
+        border-radius: 15px;
+        padding: 30px;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+      }
+
+      .section-title {
+        font-size: 1.8em;
+        color: #333;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 3px solid #667eea;
+      }
+
+      .form-group {
+        margin-bottom: 25px;
+      }
+
+      label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 8px;
+        color: #555;
+      }
+
+      select,
+      input[type="text"] {
+        width: 100%;
+        padding: 12px;
+        border: 2px solid #e1e5e9;
+        border-radius: 8px;
+        font-size: 16px;
+        transition: border-color 0.3s;
+      }
+
+      select:focus,
+      input[type="text"]:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+      }
+
+      .tags-selector {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 10px;
+        margin-top: 10px;
+      }
+
+      .tag-checkbox {
+        display: flex;
+        align-items: center;
+        padding: 10px;
+        border: 2px solid #e1e5e9;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.3s;
+      }
+
+      .tag-checkbox:hover {
+        border-color: #667eea;
+        background-color: #f8f9ff;
+      }
+
+      .tag-checkbox input[type="checkbox"] {
+        margin-right: 10px;
+      }
+
+      .tag-checkbox.selected {
+        border-color: #667eea;
+        background-color: #667eea;
+        color: white;
+      }
+
+      .selected-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 15px;
+        min-height: 40px;
+        padding: 10px;
+        border: 2px dashed #e1e5e9;
+        border-radius: 8px;
+      }
+
+      .tag-pill {
+        background: #667eea;
+        color: white;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: 500;
+      }
+
+      .preview-container {
+        border: 2px solid #e1e5e9;
+        border-radius: 10px;
+        min-height: 300px;
+        padding: 20px;
+        margin: 20px 0;
+        background: #f8f9ff;
+        position: relative;
+      }
+
+      .sdk-code {
+        background: #2d2d2d;
+        color: #fff;
+        padding: 20px;
+        border-radius: 10px;
+        font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
+        font-size: 14px;
+        line-height: 1.4;
+        overflow-x: auto;
+        margin: 20px 0;
+        position: relative;
+      }
+
+      .copy-button {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: #667eea;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .copy-button:hover {
+        background: #5a6fd8;
+      }
+
+      .copy-button.copied {
+        background: #28a745;
+      }
+
+      .generate-button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 15px 30px;
+        border-radius: 10px;
+        font-size: 18px;
+        font-weight: 600;
+        cursor: pointer;
+        width: 100%;
+        margin: 20px 0;
+        transition: transform 0.2s;
+      }
+
+      .generate-button:hover {
+        transform: translateY(-2px);
+      }
+
+      .campaigns-info {
+        background: #f8f9ff;
+        border-radius: 10px;
+        padding: 20px;
+        margin: 30px 0;
+      }
+
+      .campaign-card {
+        background: white;
+        border: 1px solid #e1e5e9;
+        border-radius: 8px;
+        padding: 15px;
+        margin: 10px 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .campaign-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-top: 5px;
+      }
+
+      .campaign-tag {
+        background: #e9ecef;
+        color: #495057;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 15px;
+        margin: 20px 0;
+      }
+
+      .stat-card {
+        background: linear-gradient(135deg, #667eea20, #764ba220);
+        padding: 15px;
+        border-radius: 8px;
+        text-align: center;
+      }
+
+      .stat-value {
+        font-size: 1.5em;
+        font-weight: 700;
+        color: #667eea;
+      }
+
+      .stat-label {
+        font-size: 0.9em;
+        color: #666;
+        margin-top: 5px;
+      }
+
+      @media (max-width: 768px) {
+        .main-content {
+          grid-template-columns: 1fr;
+        }
+
+        .header h1 {
+          font-size: 2em;
+        }
+
+        .tags-selector {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .loading {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #667eea;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <!-- Header -->
+      <div class="header">
+        <h1>🚀 Gerador de SDK</h1>
+        <p>
+          Configure seu site para receber anúncios personalizados com matching
+          inteligente por tags
+        </p>
+      </div>
+
+      <!-- Main Content -->
+      <div class="main-content">
+        <!-- Configurator -->
+        <div class="configurator">
+          <h2 class="section-title">⚙️ Configuração</h2>
+
+          <!-- Site Selection -->
+          <div class="form-group">
+            <label for="siteSelect">Selecione seu site:</label>
+            <select id="siteSelect">
+              <option value="">Carregando sites...</option>
+            </select>
+          </div>
+
+          <!-- Container ID -->
+          <div class="form-group">
+            <label for="containerId">ID do Container (opcional):</label>
+            <input
+              type="text"
+              id="containerId"
+              placeholder="stellar-ad-container"
+              value="stellar-ad-container"
+            />
+            <small style="color: #666"
+              >Deixe o padrão ou personalize o ID do div onde o anúncio
+              aparecerá</small
+            >
+          </div>
+
+          <!-- Tags Selection -->
+          <div class="form-group">
+            <label>Selecione as tags do seu conteúdo:</label>
+            <div class="tags-selector" id="tagsSelector">
+              <!-- Tags serão carregadas dinamicamente -->
+            </div>
+
+            <div class="selected-tags" id="selectedTags">
+              <em style="color: #999">Nenhuma tag selecionada</em>
+            </div>
+          </div>
+
+          <!-- Generate Button -->
+          <button class="generate-button" onclick="generateSDK()">
+            🎯 Gerar SDK Personalizado
+          </button>
+        </div>
+
+        <!-- Preview -->
+        <div class="preview">
+          <h2 class="section-title">👁️ Preview dos Anúncios</h2>
+          <p>Veja como os anúncios aparecerão no seu site:</p>
+
+          <div class="preview-container" id="previewContainer">
+            <em style="color: #999"
+              >Configure seu site e tags para ver a prévia</em
+            >
+          </div>
+
+          <button
+            class="generate-button"
+            onclick="refreshPreview()"
+            style="background: #28a745"
+          >
+            🔄 Atualizar Preview
+          </button>
+        </div>
+      </div>
+
+      <!-- Generated SDK Code -->
+      <div class="configurator" id="sdkCodeSection" style="display: none">
+        <h2 class="section-title">📋 Código SDK Gerado</h2>
+        <p>Copie e cole este código no seu site:</p>
+
+        <div class="sdk-code" id="sdkCode">
+          <button class="copy-button" onclick="copyCode()">📋 Copiar</button>
+          <!-- Código será gerado dinamicamente -->
+        </div>
+
+        <div class="stats" id="statsContainer">
+          <!-- Estatísticas serão carregadas -->
+        </div>
+      </div>
+
+      <!-- Campaigns Information -->
+      <div class="campaigns-info">
+        <h2 class="section-title">📊 Campanhas Disponíveis</h2>
+        <p>
+          Estas campanhas podem aparecer no seu site baseadas no matching de
+          tags:
+        </p>
+        <div id="campaignsContainer">
+          <div class="loading"></div>
+          Carregando campanhas...
+        </div>
+      </div>
+    </div>
+
+    <script>
+      let sites = [];
+      let campaigns = [];
+      let selectedTags = [];
+      let selectedSite = null;
+
+      // Tags disponíveis no sistema
+      const availableTags = [
+        "tecnologia",
+        "programacao",
+        "startups",
+        "crypto",
+        "blockchain",
+        "trading",
+        "educacao",
+        "cursos",
+        "produtividade",
+        "gestao",
+        "saas",
+        "hardware",
+        "loja",
+        "cloud",
+        "hosting",
+        "infraestrutura",
+      ];
+
+      // Inicializar página
+      window.onload = function () {
+        loadSites();
+        loadCampaigns();
+        createTagsSelector();
+        loadStats();
+      };
+
+      // Carregar sites
+      async function loadSites() {
+        try {
+          const response = await fetch("/api/sites");
+          const data = await response.json();
+
+          if (data.success) {
+            sites = data.sites;
+            const select = document.getElementById("siteSelect");
+            select.innerHTML = '<option value="">Selecione seu site</option>';
+
+            sites.forEach((site) => {
+              const option = document.createElement("option");
+              option.value = site.id;
+              option.textContent = `${site.name} (${site.domain})`;
+              select.appendChild(option);
+            });
+          }
+        } catch (error) {
+          console.error("Erro ao carregar sites:", error);
+          document.getElementById("siteSelect").innerHTML =
+            '<option value="">Erro ao carregar sites</option>';
+        }
+      }
+
+      // Carregar campanhas
+      async function loadCampaigns() {
+        try {
+          const response = await fetch("/api/campaigns");
+          const data = await response.json();
+
+          if (data.success) {
+            campaigns = data.campaigns;
+            displayCampaigns();
+          } else {
+            // Se endpoint não existir, criar campanhas fake para demo
+            campaigns = [
+              {
+                id: "campaign_tech_001",
+                advertiser_name: "TechStartup Inc",
+                cost_per_click: 0.15,
+                tags: '["tecnologia", "programacao", "startups"]',
+              },
+              {
+                id: "campaign_crypto_002",
+                advertiser_name: "CryptoExchange Pro",
+                cost_per_click: 0.25,
+                tags: '["crypto", "blockchain", "trading"]',
+              },
+              {
+                id: "campaign_elearning_003",
+                advertiser_name: "CodeAcademy Plus",
+                cost_per_click: 0.12,
+                tags: '["educacao", "programacao", "cursos"]',
+              },
+              {
+                id: "campaign_saas_004",
+                advertiser_name: "ProjectManager Pro",
+                cost_per_click: 0.2,
+                tags: '["produtividade", "gestao", "saas"]',
+              },
+              {
+                id: "campaign_hardware_005",
+                advertiser_name: "TechGear Store",
+                cost_per_click: 0.18,
+                tags: '["hardware", "tecnologia", "loja"]',
+              },
+              {
+                id: "campaign_cloud_006",
+                advertiser_name: "CloudHost Solutions",
+                cost_per_click: 0.3,
+                tags: '["cloud", "hosting", "infraestrutura"]',
+              },
+            ];
+            displayCampaigns();
+          }
+        } catch (error) {
+          console.error("Erro ao carregar campanhas:", error);
+        }
+      }
+
+      // Exibir campanhas
+      function displayCampaigns() {
+        const container = document.getElementById("campaignsContainer");
+        container.innerHTML = "";
+
+        campaigns.forEach((campaign) => {
+          const div = document.createElement("div");
+          div.className = "campaign-card";
+
+          let tags = [];
+          try {
+            tags = JSON.parse(campaign.tags || "[]");
+          } catch (e) {
+            tags = [];
+          }
+
+          div.innerHTML = `
+                    <div>
+                        <strong>${campaign.advertiser_name}</strong>
+                        <div class="campaign-tags">
+                            ${tags
+                              .map(
+                                (tag) =>
+                                  `<span class="campaign-tag">${tag}</span>`
+                              )
+                              .join("")}
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <strong>$${campaign.cost_per_click}</strong><br>
+                        <small>CPC</small>
+                    </div>
+                `;
+          container.appendChild(div);
+        });
+      }
+
+      // Criar seletor de tags
+      function createTagsSelector() {
+        const container = document.getElementById("tagsSelector");
+
+        availableTags.forEach((tag) => {
+          const div = document.createElement("div");
+          div.className = "tag-checkbox";
+          div.innerHTML = `
+                    <input type="checkbox" id="tag-${tag}" value="${tag}">
+                    <label for="tag-${tag}">${tag}</label>
+                `;
+
+          const checkbox = div.querySelector('input[type="checkbox"]');
+          checkbox.addEventListener("change", function () {
+            if (this.checked) {
+              selectedTags.push(tag);
+              div.classList.add("selected");
+            } else {
+              selectedTags = selectedTags.filter((t) => t !== tag);
+              div.classList.remove("selected");
+            }
+            updateSelectedTagsDisplay();
+            refreshPreview();
+          });
+
+          container.appendChild(div);
+        });
+      }
+
+      // Atualizar display de tags selecionadas
+      function updateSelectedTagsDisplay() {
+        const container = document.getElementById("selectedTags");
+
+        if (selectedTags.length === 0) {
+          container.innerHTML =
+            '<em style="color: #999;">Nenhuma tag selecionada</em>';
+        } else {
+          container.innerHTML = selectedTags
+            .map((tag) => `<span class="tag-pill">${tag}</span>`)
+            .join("");
+        }
+      }
+
+      // Atualizar preview
+      async function refreshPreview() {
+        const siteSelect = document.getElementById("siteSelect");
+        const previewContainer = document.getElementById("previewContainer");
+
+        if (!siteSelect.value) {
+          previewContainer.innerHTML =
+            '<em style="color: #999;">Selecione um site primeiro</em>';
+          return;
+        }
+
+        selectedSite = sites.find((site) => site.id === siteSelect.value);
+
+        previewContainer.innerHTML =
+          '<div class="loading"></div> Carregando preview...';
+
+        try {
+          const tagsParam =
+            selectedTags.length > 0 ? `&tags=${selectedTags.join(",")}` : "";
+          const response = await fetch(
+            `/api/ad?siteId=${siteSelect.value}${tagsParam}`
+          );
+          const data = await response.json();
+
+          if (data.success && data.ad) {
+            previewContainer.innerHTML = `
+                        <div style="border: 2px solid #667eea; border-radius: 8px; padding: 15px; background: white; text-align: center;">
+                            <h4 style="color: #667eea; margin-bottom: 10px;">📢 ${
+                              data.ad.advertiserName
+                            }</h4>
+                            <img src="${data.ad.imageUrl}" alt="Anúncio" 
+                                 style="width: 100%; max-width: 300px; border-radius: 5px; margin: 10px 0;"
+                                 onerror="this.src='https://via.placeholder.com/300x250/667eea/white?text=Anúncio'">
+                            <p style="margin: 10px 0;"><strong>CPC:</strong> $${
+                              data.ad.costPerClick
+                            }</p>
+                            <small style="color: #666;">
+                                🎯 ${
+                                  selectedTags.length > 0
+                                    ? `Match baseado nas tags: ${selectedTags.join(
+                                        ", "
+                                      )}`
+                                    : "Matching aleatório (sem tags)"
+                                }
+                            </small>
+                        </div>
+                    `;
+          } else {
+            previewContainer.innerHTML = `
+                        <div style="text-align: center; padding: 40px; color: #999;">
+                            <h4>Nenhum anúncio disponível</h4>
+                            <p>${
+                              data.message ||
+                              "Tente diferentes combinações de tags"
+                            }</p>
+                        </div>
+                    `;
+          }
+        } catch (error) {
+          console.error("Erro no preview:", error);
+          previewContainer.innerHTML =
+            '<p style="color: #dc3545;">Erro ao carregar preview</p>';
+        }
+      }
+
+      // Gerar SDK
+      function generateSDK() {
+        const siteSelect = document.getElementById("siteSelect");
+        const containerId =
+          document.getElementById("containerId").value ||
+          "stellar-ad-container";
+
+        if (!siteSelect.value) {
+          alert("Por favor, selecione um site primeiro!");
+          return;
+        }
+
+        selectedSite = sites.find((site) => site.id === siteSelect.value);
+
+        const tagsAttribute =
+          selectedTags.length > 0
+            ? ' data-tags="' + selectedTags.join(",") + '"'
+            : "";
+
+        // Gerar código SDK
+        let sdkCode = "<!-- Stellar Ads SDK -->" + "\n";
+        sdkCode += '<div id="' + containerId + '"' + "\n";
+        sdkCode +=
+          '     data-site-id="' +
+          selectedSite.id +
+          '"' +
+          tagsAttribute +
+          "></div>" +
+          "\n";
+        sdkCode +=
+          "<" + 'script src="http://localhost:3000/sdk.js"><' + "/script>";
+
+        document.getElementById("sdkCode").innerHTML =
+          '<button class="copy-button" onclick="copyCode()">📋 Copiar</button>' +
+          '<pre style="margin: 0; white-space: pre-wrap;">' +
+          escapeHtml(sdkCode) +
+          "</pre>";
+
+        document.getElementById("sdkCodeSection").style.display = "block";
+        document
+          .getElementById("sdkCodeSection")
+          .scrollIntoView({ behavior: "smooth" });
+      }
+
+      // Copiar código
+      function copyCode() {
+        const codeElement = document.querySelector("#sdkCode pre");
+        const text = codeElement.textContent;
+
+        navigator.clipboard.writeText(text).then(() => {
+          const button = document.querySelector("#sdkCode .copy-button");
+          const originalText = button.textContent;
+          button.textContent = "✅ Copiado!";
+          button.classList.add("copied");
+
+          setTimeout(() => {
+            button.textContent = originalText;
+            button.classList.remove("copied");
+          }, 2000);
+        });
+      }
+
+      // Carregar estatísticas
+      async function loadStats() {
+        try {
+          const response = await fetch("/api/stats");
+          const data = await response.json();
+
+          if (data.success) {
+            const statsContainer = document.getElementById("statsContainer");
+            statsContainer.innerHTML = `
+                        <div class="stat-card">
+                            <div class="stat-value">${data.totalCampaigns}</div>
+                            <div class="stat-label">Campanhas Ativas</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${data.totalImpressions}</div>
+                            <div class="stat-label">Impressões</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${data.totalClicks}</div>
+                            <div class="stat-label">Cliques</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${data.averageCtr}%</div>
+                            <div class="stat-label">CTR Médio</div>
+                        </div>
+                    `;
+          }
+        } catch (error) {
+          console.error("Erro ao carregar stats:", error);
+        }
+      }
+
+      // Função auxiliar para escapar HTML
+      function escapeHtml(unsafe) {
+        return unsafe
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+      // Event listener para mudança de site
+      document
+        .getElementById("siteSelect")
+        .addEventListener("change", function () {
+          if (this.value) {
+            refreshPreview();
+          }
+        });
+    </script>
+  </body>
+</html>

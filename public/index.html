@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Teste do Stellar Ads SDK</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: Arial, sans-serif;
+        line-height: 1.6;
+        color: #333;
+        background: #f4f4f4;
+        padding: 20px;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+      }
+
+      .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 30px;
+        text-align: center;
+      }
+
+      .header h1 {
+        font-size: 2.5em;
+        margin-bottom: 10px;
+      }
+
+      .header p {
+        font-size: 1.2em;
+        opacity: 0.9;
+      }
+
+      .content {
+        padding: 30px;
+      }
+
+      .demo-section {
+        margin-bottom: 40px;
+        padding: 20px;
+        background: #f9f9f9;
+        border-radius: 8px;
+        border: 2px dashed #ddd;
+      }
+
+      .demo-section h2 {
+        color: #667eea;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+      }
+
+      .demo-section h2:before {
+        content: "🎯";
+        margin-right: 10px;
+      }
+
+      .ad-container {
+        width: 300px;
+        height: 250px;
+        border: 2px solid #007acc;
+        border-radius: 8px;
+        margin: 20px auto;
+        background: #fafafa;
+        position: relative;
+      }
+
+      .ad-container:before {
+        content: "Container do Anúncio (300x250)";
+        position: absolute;
+        top: -25px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #007acc;
+        color: white;
+        padding: 4px 12px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: bold;
+      }
+
+      .code-block {
+        background: #2d3748;
+        color: #a0aec0;
+        padding: 20px;
+        border-radius: 8px;
+        margin: 15px 0;
+        overflow-x: auto;
+        font-family: "Courier New", monospace;
+        font-size: 14px;
+        line-height: 1.4;
+      }
+
+      .code-block .comment {
+        color: #68d391;
+      }
+
+      .code-block .tag {
+        color: #63b3ed;
+      }
+
+      .code-block .attribute {
+        color: #f6ad55;
+      }
+
+      .code-block .value {
+        color: #fc8181;
+      }
+
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        margin: 20px 0;
+      }
+
+      .stat-card {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        text-align: center;
+        border-top: 4px solid #667eea;
+      }
+
+      .stat-card h3 {
+        color: #667eea;
+        margin-bottom: 10px;
+      }
+
+      .stat-card .number {
+        font-size: 2em;
+        font-weight: bold;
+        color: #333;
+      }
+
+      .control-panel {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        margin: 20px 0;
+      }
+
+      .control-panel button {
+        background: #667eea;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 6px;
+        cursor: pointer;
+        margin: 5px;
+        transition: background 0.3s;
+      }
+
+      .control-panel button:hover {
+        background: #5a67d8;
+      }
+
+      .logs {
+        background: #1a202c;
+        color: #a0aec0;
+        padding: 20px;
+        border-radius: 8px;
+        margin: 20px 0;
+        max-height: 300px;
+        overflow-y: auto;
+        font-family: "Courier New", monospace;
+        font-size: 12px;
+      }
+
+      .footer {
+        background: #2d3748;
+        color: #a0aec0;
+        padding: 20px;
+        text-align: center;
+      }
+
+      .integration-steps {
+        background: #e6fffa;
+        border: 1px solid #38b2ac;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 20px 0;
+      }
+
+      .integration-steps h3 {
+        color: #2c7a7b;
+        margin-bottom: 15px;
+      }
+
+      .step {
+        margin: 10px 0;
+        padding: 10px;
+        background: white;
+        border-left: 4px solid #38b2ac;
+        border-radius: 4px;
+      }
+
+      .step strong {
+        color: #2c7a7b;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>🚀 Stellar Ads SDK</h1>
+        <p>Plataforma de Anúncios com Pagamentos Automatizados via Stellar</p>
+      </div>
+
+      <div class="content">
+        <!-- Demonstração do SDK -->
+        <div class="demo-section">
+          <h2>Demonstração ao Vivo</h2>
+          <p>
+            Abaixo você pode ver o SDK em ação. O anúncio é carregado
+            automaticamente e os cliques são rastreados com pagamentos via
+            Stellar.
+          </p>
+
+          <!-- Container onde o anúncio será exibido -->
+          <div id="stellar-ad-container" class="ad-container"></div>
+
+          <div class="control-panel">
+            <button id="reloadAdBtn">🔄 Recarregar Anúncio</button>
+            <button id="toggleDebugBtn">🐛 Debug Mode</button>
+            <button id="viewStatsBtn">📊 Ver Estatísticas</button>
+          </div>
+        </div>
+
+        <!-- Guia de Integração -->
+        <div class="integration-steps">
+          <h3>📚 Como Integrar em Seu Site</h3>
+
+          <div class="step">
+            <strong>Passo 1:</strong> Adicione o container do anúncio em seu
+            HTML:
+            <div class="code-block">
+              <span class="comment"
+                >&lt;!-- Container onde o anúncio será exibido --&gt;</span
+              >
+              <span class="tag">&lt;div</span>
+              <span class="attribute">id</span>=<span class="value"
+                >"stellar-ad-container"</span
+              >
+              <span class="attribute">style</span>=<span class="value"
+                >"width: 300px; height: 250px;"</span
+              ><span class="tag">&gt;&lt;/div&gt;</span>
+            </div>
+          </div>
+
+          <div class="step">
+            <strong>Passo 2:</strong> Inclua o script do SDK com seu siteId:
+            <div class="code-block">
+              <span class="comment">&lt;!-- SDK do Stellar Ads --&gt;</span>
+              <span class="tag">&lt;script</span>
+              <span class="attribute">src</span>=<span class="value"
+                >"http://localhost:3000/sdk.js?siteId=site_example_123"</span
+              ><span class="tag">&gt;&lt;/script&gt;</span>
+            </div>
+          </div>
+
+          <div class="step">
+            <strong>Pronto!</strong> O anúncio será carregado automaticamente.
+            Cliques são rastreados e pagamentos processados via Stellar
+            blockchain.
+          </div>
+        </div>
+
+        <!-- Estatísticas -->
+        <div class="demo-section">
+          <h2>📈 Estatísticas da Plataforma</h2>
+          <div class="stats-grid" id="statsGrid">
+            <div class="stat-card">
+              <h3>Impressões (24h)</h3>
+              <div class="number" id="totalImpressions">-</div>
+            </div>
+            <div class="stat-card">
+              <h3>Total de Cliques</h3>
+              <div class="number" id="totalClicks">-</div>
+            </div>
+            <div class="stat-card">
+              <h3>CTR (Taxa de Cliques)</h3>
+              <div class="number" id="ctrRate">-%</div>
+            </div>
+            <div class="stat-card">
+              <h3>Receita Total</h3>
+              <div class="number" id="totalRevenue">- XLM</div>
+            </div>
+            <div class="stat-card">
+              <h3>Campanhas Ativas</h3>
+              <div class="number" id="activeCampaigns">-</div>
+            </div>
+            <div class="stat-card">
+              <h3>CPC Médio</h3>
+              <div class="number" id="averageCPC">- XLM</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Logs -->
+        <div class="demo-section">
+          <h2>🔧 Console de Debug</h2>
+          <div class="logs" id="logContainer">
+            Console logs aparecerão aqui quando o debug mode estiver ativo...
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <p>
+          &copy; 2025 Stellar Ads SDK - Plataforma de Anúncios Descentralizada
+        </p>
+        <p>Powered by Stellar Blockchain • Node.js • Express</p>
+      </div>
+    </div>
+
+    <!-- Incluir o SDK com siteId de exemplo -->
+    <script src="/sdk.js?siteId=site_example_123"></script>
+
+    <!-- Scripts da página de teste -->
+    <script>
+      // Variáveis globais
+      let debugMode = false;
+      let originalConsoleLog = console.log;
+      let originalConsoleError = console.error;
+
+      // Inicialização
+      document.addEventListener("DOMContentLoaded", function () {
+        loadStats();
+
+        // Configurar captura de logs
+        setupLogCapture();
+
+        // Configurar event listeners dos botões
+        setupEventListeners();
+
+        console.log("Página de teste carregada");
+      });
+
+      // Configurar event listeners
+      function setupEventListeners() {
+        document
+          .getElementById("reloadAdBtn")
+          .addEventListener("click", reloadAd);
+        document
+          .getElementById("toggleDebugBtn")
+          .addEventListener("click", toggleDebug);
+        document
+          .getElementById("viewStatsBtn")
+          .addEventListener("click", viewStats);
+      }
+
+      // Função para recarregar anúncio
+      function reloadAd() {
+        const container = document.getElementById("stellar-ad-container");
+        container.innerHTML =
+          '<div style="padding: 50px; text-align: center; color: #666;">Carregando anúncio...</div>';
+
+        if (window.StellarAdsSDK && window.StellarAdsSDK.reinitialize) {
+          window.StellarAdsSDK.reinitialize();
+        }
+
+        addLog("Anúncio recarregado manualmente");
+      }
+
+      // Função para alternar debug mode
+      function toggleDebug() {
+        debugMode = !debugMode;
+
+        if (window.StellarAdsSDK) {
+          window.StellarAdsSDK.debug = debugMode;
+        }
+
+        const button = document.getElementById("toggleDebugBtn");
+        button.textContent = debugMode ? "🐛 Debug: ON" : "🐛 Debug Mode";
+        button.style.background = debugMode ? "#e53e3e" : "#667eea";
+
+        addLog(`Debug mode ${debugMode ? "ativado" : "desativado"}`);
+      }
+
+      // Função para carregar estatísticas
+      async function loadStats() {
+        try {
+          const response = await fetch("/api/stats");
+          const data = await response.json();
+
+          if (data.success) {
+            const stats = data.stats;
+
+            document.getElementById("totalImpressions").textContent =
+              stats.impressions?.total || 0;
+            document.getElementById("totalClicks").textContent =
+              stats.clicks?.total || 0;
+            document.getElementById("ctrRate").textContent = `${
+              stats.general?.ctr || 0
+            }%`;
+            document.getElementById("totalRevenue").textContent = `${
+              stats.clicks?.revenue || 0
+            } XLM`;
+            document.getElementById("activeCampaigns").textContent =
+              stats.general?.activeCampaigns || 0;
+            document.getElementById("averageCPC").textContent = `${
+              stats.general?.averageCPC || 0
+            } XLM`;
+
+            addLog("Estatísticas carregadas com sucesso");
+          } else {
+            addLog("Erro ao carregar estatísticas: " + data.error);
+          }
+        } catch (error) {
+          addLog("Erro de rede ao carregar estatísticas: " + error.message);
+        }
+      }
+
+      // Função para ver estatísticas
+      function viewStats() {
+        loadStats();
+        document
+          .getElementById("statsGrid")
+          .scrollIntoView({ behavior: "smooth" });
+      }
+
+      // Configurar captura de logs
+      function setupLogCapture() {
+        console.log = function (...args) {
+          originalConsoleLog.apply(console, args);
+          if (args[0] && args[0].includes && args[0].includes("Stellar Ads")) {
+            addLog(args.join(" "));
+          }
+        };
+
+        console.error = function (...args) {
+          originalConsoleError.apply(console, args);
+          if (args[0] && args[0].includes && args[0].includes("Stellar Ads")) {
+            addLog(args.join(" "), "error");
+          }
+        };
+      }
+
+      // Adicionar log ao console visual
+      function addLog(message, type = "info") {
+        const logContainer = document.getElementById("logContainer");
+        const timestamp = new Date().toLocaleTimeString();
+        const color = type === "error" ? "#fc8181" : "#68d391";
+
+        const logEntry = document.createElement("div");
+        logEntry.innerHTML = `<span style="color: #4a5568">[${timestamp}]</span> <span style="color: ${color}">${message}</span>`;
+
+        logContainer.appendChild(logEntry);
+        logContainer.scrollTop = logContainer.scrollHeight;
+
+        // Limitar número de logs
+        const logs = logContainer.children;
+        if (logs.length > 50) {
+          logContainer.removeChild(logs[0]);
+        }
+      }
+
+      // Atualizar estatísticas automaticamente
+      setInterval(loadStats, 30000); // A cada 30 segundos
+    </script>
+  </body>
+</html>
