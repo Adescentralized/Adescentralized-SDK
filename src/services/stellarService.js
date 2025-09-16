@@ -25,6 +25,7 @@ class StellarService {
 
       // Configurar keypair da plataforma
       if (process.env.PLATFORM_SECRET_KEY) {
+        console.log(process.env.PLATFORM_SECRET_KEY)
         this.platformKeypair = StellarSdk.Keypair.fromSecret(
           process.env.PLATFORM_SECRET_KEY
         );
@@ -84,7 +85,8 @@ class StellarService {
    * Processa pagamento para clique de anúncio
    * Divide o valor entre editor (70%) e plataforma (30%) por padrão
    */
-  async processClickPayment(campaignData, siteData, clickAmount) {
+  async processClickPayment(campaignData, siteData, clickAmount, destinationWallet) {
+    console.log( this.initialized, this.platformKeypair);
     if (!this.initialized || !this.platformKeypair) {
       throw new Error("Serviço Stellar não inicializado ou sem chave secreta");
     }
@@ -115,6 +117,7 @@ class StellarService {
         }
       );
 
+      console.log(siteData)
       // Pagamento para o editor (site)
       if (siteRevenue > 0) {
         transactionBuilder.addOperation(

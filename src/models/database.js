@@ -200,6 +200,8 @@ class DatabaseModel {
     }
   }
 
+  // Inserir dados de exemplo para testes
+
   async insertSampleData() {
     // Verificar se já existem dados
     const existingSites = this.db

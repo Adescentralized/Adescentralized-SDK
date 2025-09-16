@@ -657,7 +657,7 @@ router.get("/ad", async (req, res) => {
  */
 router.get("/click", async (req, res) => {
   try {
-    const { campaignId, siteId } = req.query;
+    const { campaignId, siteId, destinationWallet } = req.query;
 
     // Validação de parâmetros
     if (!campaignId || !siteId) {
@@ -705,7 +705,7 @@ router.get("/click", async (req, res) => {
     // Isso acontece em segundo plano, sem impactar a experiência do usuário
     setImmediate(async () => {
       try {
-        await processClickAsync(campaign, site, context);
+        await processClickAsync(campaign, site, context, destinationWallet);
       } catch (error) {
         console.error("Erro no processamento assíncrono do clique:", error);
       }
@@ -723,7 +723,7 @@ router.get("/click", async (req, res) => {
 /**
  * Função assíncrona para processar clique e pagamento
  */
-async function processClickAsync(campaign, site, context) {
+async function processClickAsync(campaign, site, context, destinationWallet) {
   try {
     const clickId = uuidv4();
     const clickAmount = campaign.cost_per_click;
@@ -732,7 +732,8 @@ async function processClickAsync(campaign, site, context) {
     const userRewardResult = await adMatchingService.processClickWithUserReward(
       campaign.id,
       site.id,
-      context
+      context,
+      destinationWallet
     );
 
     // 2. Registrar clique no banco de dados
@@ -755,7 +756,8 @@ async function processClickAsync(campaign, site, context) {
       const paymentResult = await stellarService.processClickPayment(
         campaign,
         site,
-        clickAmount
+        clickAmount,
+        destinationWallet
       );
 
       // 4. Atualizar status do pagamento no banco
@@ -1167,14 +1169,6 @@ router.get("/user-rewards", (req, res) => {
       userFingerprint,
       siteId
     );
-
-    // Obter estatísticas do usuário
-    const userStats = database.getUserStats(userFingerprint, siteId) || {
-      total_impressions: 0,
-      total_clicks: 0,
-      total_earned_xlm: 0,
-      last_reward_at: null,
-    };
 
     // Calcular tempo restante até próxima recompensa
     let nextRewardIn = 0;

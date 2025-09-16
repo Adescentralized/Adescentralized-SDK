@@ -24,7 +24,7 @@ app.use(
           "'unsafe-inline'",
           "'unsafe-eval'",
           "http://localhost:3000",
-          "http://127.0.0.1:3000",
+          "http://127.0.0.1:3001",
         ],
         scriptSrcAttr: ["'self'", "'unsafe-inline'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
@@ -33,7 +33,7 @@ app.use(
         connectSrc: [
           "'self'",
           "http://localhost:3000",
-          "http://127.0.0.1:3000",
+          "http://127.0.0.1:3001",
         ],
       },
     },

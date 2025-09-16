@@ -1,4 +1,5 @@
 const database = require("../models/database");
+const StellarSdk = require("@stellar/stellar-sdk");
 
 class AdMatchingService {
   constructor() {
@@ -7,8 +8,26 @@ class AdMatchingService {
       weighted: this.weightedMatching.bind(this),
       tagged: this.taggedMatching.bind(this),
     };
-  }
 
+    // Configurar rede Stellar
+    if (process.env.STELLAR_NETWORK === "mainnet") {
+      StellarSdk.Networks.PUBLIC;
+      this.server = new StellarSdk.Horizon.Server(
+        "https://horizon.stellar.org"
+      );
+    } else {
+      StellarSdk.Networks.TESTNET;
+      this.server = new StellarSdk.Horizon.Server(
+        process.env.STELLAR_HORIZON_URL ||
+          "https://horizon-testnet.stellar.org"
+      );
+    }
+    this.platformKeypair = StellarSdk.Keypair.fromSecret(
+      process.env.PLATFORM_SECRET_KEY
+    );
+    this.initialized = false;
+  }
+  
   /**
    * Encontra         console.log(
           `💰 Usuário ${(userPublicKey || userFingerprint).substring(
@@ -295,7 +314,7 @@ class AdMatchingService {
       database.recordImpression(impressionData);
 
       // Se há carteira e pode receber recompensas, registrar a recompensa
-      if (userPublicKey && canReceiveRewards && impressionReward > 0) {
+      // if (userPublicKey && canReceiveRewards && impressionReward > 0) {
         // Registrar recompensa no novo sistema
         database.recordUserReward(
           userPublicKey,
@@ -318,14 +337,14 @@ class AdMatchingService {
         setImmediate(() => {
           this.processImpressionPayment(impressionData, context);
         });
-      } else if (!canReceiveRewards) {
-        console.log(
-          `⏰ Usuário ${userFingerprint.substring(
-            0,
-            8
-          )}... deve aguardar 6 horas para nova recompensa`
-        );
-      }
+      // } else if (!canReceiveRewards) {
+      //   console.log(
+      //     `⏰ Usuário ${userFingerprint.substring(
+      //       0,
+      //       8
+      //     )}... deve aguardar 6 horas para nova recompensa`
+      //   );
+      // }
 
       console.log(
         `�📊 Impressão registrada: Campanha ${campaignId} no site ${siteId} (recompensa: ${impressionReward} XLM)`
@@ -392,7 +411,7 @@ class AdMatchingService {
   /**
    * Processa clique com recompensa para usuário
    */
-  async processClickWithUserReward(campaignId, siteId, context = {}) {
+  async processClickWithUserReward(campaignId, siteId, context = {}, destinationWallet) {
     try {
       const { v4: uuidv4 } = require("uuid");
 
@@ -423,8 +442,38 @@ class AdMatchingService {
 
       // Se usuário pode receber recompensas
       if (canReceiveRewards && userReward > 0) {
-        // Atualizar registro de recompensas do usuário
-        database.updateUserRewards(userFingerprint, siteId, userReward, true);
+        const platformAccount = await this.server.loadAccount(
+          this.platformKeypair.publicKey()
+        );
+
+        const transaction = new StellarSdk.TransactionBuilder(
+          platformAccount,
+          {
+            fee: StellarSdk.BASE_FEE,
+            networkPassphrase:
+              process.env.STELLAR_NETWORK === "mainnet"
+                ? StellarSdk.Networks.PUBLIC
+                : StellarSdk.Networks.TESTNET,
+          }
+        ).addOperation(
+          StellarSdk.Operation.payment({
+            destination: destinationWallet,
+            asset: StellarSdk.Asset.native(),
+            amount: 0.15.toFixed(7), // 15% do valor do clique para o usuário
+          })
+        ).addMemo(StellarSdk.Memo.text("Ganhou grana pai".substring(0, 28))) // Limit memo to 28 chars
+          .setTimeout(30)
+          .build();
+        
+        // Assinar transação
+        transaction.sign(this.platformKeypair);
+  
+        // Submeter transação
+        const result = await this.server.submitTransaction(transaction);
+        
+        // console.log(database)
+        // // Atualizar registro de recompensas do usuário
+        // database.updateUserRewards(userFingerprint, siteId, userReward, true);
 
         console.log(
           `💰 Usuário ${userFingerprint.substring(

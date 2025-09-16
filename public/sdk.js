@@ -26,19 +26,13 @@
     DEBUG: true, // Ativando debug temporariamente
   };
 
+  let adImpressao = ""
+
   /**
    * Detecta a URL base da API baseada no contexto
    */
   function detectApiBaseUrl() {
-    // Se estamos em um Live Server ou ambiente similar, usar localhost:3000
-    if (
-      window.location.port === "5500" ||
-      window.location.hostname === "127.0.0.1"
-    ) {
-      return "http://localhost:3000";
-    }
-    // Caso contrário, usar o mesmo servidor
-    return window.location.protocol + "//" + window.location.host;
+    return "http://localhost:3000";
   }
 
   // Namespace global para evitar conflitos
@@ -154,7 +148,7 @@
       return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error("Payment request timeout"));
-        }, 30000);
+        }, 30010);
 
         window.postMessage(
           {
@@ -433,6 +427,7 @@
 
     // Método 2: Configuração via data attributes no container
     const container = document.getElementById(CONFIG.CONTAINER_ID);
+    
     if (container) {
       const siteId = container.getAttribute("data-site-id");
       const tagsAttr = container.getAttribute("data-tags");
@@ -595,9 +590,16 @@
                 transition: transform 0.2s ease;
             `;
 
+
+      const userWallet = window.StellarAdsSDK.userWallet
+      if(!userWallet || !userWallet.connected) {
+        console.log("Não há carteira do usuário")
+      }
+
       // Link principal
       const adLink = document.createElement("a");
-      adLink.href = adData.clickUrl;
+      adLink.href = adData.clickUrl + `&destinationWallet=${userWallet.publicKey}`
+      adImpressao = adLink.href
       adLink.target = "_blank";
       adLink.rel = "noopener noreferrer";
       adLink.style.cssText = `
@@ -609,7 +611,7 @@
 
       // Imagem do anúncio
       const adImage = document.createElement("img");
-      adImage.src = adData.imageUrl;
+      adImage.src = "http://pulsestage-frontend.s3-website-us-east-1.amazonaws.com/WhatsApp Image 2025-09-16 at 10.46.22.jpeg";
       adImage.alt = `Anúncio de ${adData.advertiserName || "Anunciante"}`;
       adImage.style.cssText = `
                 width: 100%;
@@ -739,7 +741,8 @@
     try {
       // Obter configuração atual
       const config = extractConfiguration();
-      const userWallet = window.StellarAdsSDK.userWallet;
+      const userWallet = window.StellarAdsSDK.userWallet
+      console.log(`>>>>>>>>>>>>>>> Usuário da carteira: ${userWallet}, visualizou o anúncio`)
 
       // Enviar requisição para registrar a impressão
       const impressionData = {
@@ -783,10 +786,8 @@
             adData.campaignId
           );
 
-          // Se há recompensa para o usuário, processar pagamento
-          if (data.success && data.userReward && userWallet) {
-            processUserReward(data.userReward, userWallet);
-          }
+          processUserReward(data.userReward, userWallet);
+
         })
         .catch((error) => {
           // Falhas no tracking não devem afetar a funcionalidade principal
@@ -822,7 +823,7 @@
           // Aguardar alguns segundos para a transação ser processada
           setTimeout(async () => {
             await checkUserBalanceFromExtension();
-          }, 3000);
+          }, 3001);
         } catch (error) {
           log("Erro ao atualizar saldo via extensão:", error);
         }
@@ -841,6 +842,8 @@
               },
             })
           );
+
+          fetch(adImpressao).then(res => console.log(">>>>>>>>>>>>>>>>> Impressão Enviada", res)).catch(err => console.log("Erro ao confirmar impressão", err))
         } catch (error) {
           log("Erro ao disparar evento de recompensa:", error);
         }

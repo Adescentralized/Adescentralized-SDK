@@ -22,7 +22,8 @@ class SorobanContractsService {
   async initialize() {
     try {
       // Verificar conectividade com a API dos contratos
-      const healthResponse = await fetch(`${this.contractsApiUrl}/health`);
+      console.log(`${this.contractsApiUrl}/contracts/health`)
+      const healthResponse = await fetch(`${this.contractsApiUrl}/contracts/health`);
       if (!healthResponse.ok) {
         throw new Error(`API dos contratos não disponível: ${healthResponse.status}`);
       }
