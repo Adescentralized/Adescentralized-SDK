@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo: SDK + Extensão - Stellar Ads</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .header p {
+            margin: 10px 0;
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        
+        .demo-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+        
+        .demo-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .demo-card h3 {
+            margin: 0 0 20px 0;
+            font-size: 1.5em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .extension-status {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .extension-connected {
+            background: rgba(76, 175, 80, 0.3);
+            border: 2px solid #4CAF50;
+        }
+        
+        .extension-disconnected {
+            background: rgba(244, 67, 54, 0.3);
+            border: 2px solid #f44336;
+        }
+        
+        .wallet-info {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        
+        .wallet-info code {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 5px 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            word-break: break-all;
+        }
+        
+        .ad-container {
+            width: 100%;
+            height: 250px;
+            margin: 20px 0;
+            border: 2px dashed rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        .controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .btn {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 0 10px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+        
+        .btn:active {
+            transform: scale(0.95);
+        }
+        
+        .logs {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #4CAF50;
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        .log-error {
+            border-left-color: #f44336;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .stat-card {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.8;
+            margin-top: 5px;
+        }
+        
+        @media (max-width: 768px) {
+            .demo-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Demo: SDK + Extensão</h1>
+            <p>Demonstração da integração entre o SDK Stellar Ads e a extensão do navegador</p>
+            <p>Esta página simula como a extensão e o SDK trabalham juntos para gerenciar carteiras e recompensas</p>
+        </div>
+
+        <div class="demo-grid">
+            <!-- Status da Extensão -->
+            <div class="demo-card">
+                <h3>🔌 Status da Extensão</h3>
+                <div id="extension-status" class="extension-status extension-disconnected">
+                    Extensão não detectada
+                </div>
+                
+                <div id="wallet-info" style="display: none;">
+                    <div class="wallet-info">
+                        <strong>💳 Carteira do Usuário:</strong><br>
+                        <code id="wallet-key">-</code>
+                    </div>
+                    <div class="wallet-info">
+                        <strong>💰 Saldo:</strong> <span id="wallet-balance">0.0000</span> XLM
+                    </div>
+                    <div class="wallet-info">
+                        <strong>🎁 Total Ganho:</strong> <span id="total-earned">0.0000</span> XLM
+                    </div>
+                </div>
+
+                <div class="controls">
+                    <button class="btn" onclick="simulateExtension()">🔧 Simular Extensão</button>
+                    <button class="btn" onclick="refreshBalance()">🔄 Atualizar Saldo</button>
+                </div>
+            </div>
+
+            <!-- SDK e Anúncios -->
+            <div class="demo-card">
+                <h3>📺 SDK de Anúncios</h3>
+                
+                <!-- Container do anúncio -->
+                <div id="stellar-ad-container" 
+                     data-site-id="demo-site" 
+                     data-tags="demo,test,cryptocurrency"
+                     class="ad-container">
+                    Carregando anúncio...
+                </div>
+
+                <div class="controls">
+                    <button class="btn" onclick="reloadAd()">🔄 Recarregar Anúncio</button>
+                    <button class="btn" onclick="simulateClick()">👆 Simular Clique</button>
+                </div>
+
+                <!-- Estatísticas -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="impressions-count">0</div>
+                        <div class="stat-label">Impressões</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="clicks-count">0</div>
+                        <div class="stat-label">Cliques</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="rewards-count">0</div>
+                        <div class="stat-label">Recompensas</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs -->
+        <div class="demo-card">
+            <h3>📝 Logs do Sistema</h3>
+            <div id="system-logs" class="logs">
+                <div class="log-entry">Sistema iniciado - aguardando atividade...</div>
+            </div>
+            <div class="controls">
+                <button class="btn" onclick="clearLogs()">🗑️ Limpar Logs</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="extension-example.js"></script>
+    <script src="sdk.js"></script>
+    
+    <script>
+        // Estados da demonstração
+        let stats = {
+            impressions: 0,
+            clicks: 0,
+            rewards: 0,
+            totalEarned: 0
+        };
+
+        // Função para adicionar logs
+        function addLog(message, isError = false) {
+            const logsContainer = document.getElementById('system-logs');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${isError ? 'log-error' : ''}`;
+            logEntry.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+            
+            logsContainer.appendChild(logEntry);
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+
+        // Simular instalação da extensão
+        function simulateExtension() {
+            addLog('🔧 Simulando instalação da extensão...');
+            
+            // A extensão já foi carregada pelo extension-example.js
+            setTimeout(() => {
+                if (window.stellarAdsExtension) {
+                    updateExtensionStatus(true);
+                    addLog('✅ Extensão simulada conectada com sucesso!');
+                } else {
+                    addLog('❌ Erro ao simular extensão', true);
+                }
+            }, 1000);
+        }
+
+        // Atualizar status da extensão
+        function updateExtensionStatus(connected) {
+            const statusElement = document.getElementById('extension-status');
+            const walletInfo = document.getElementById('wallet-info');
+            
+            if (connected && window.stellarAdsExtension) {
+                statusElement.className = 'extension-status extension-connected';
+                statusElement.textContent = '✅ Extensão Conectada';
+                walletInfo.style.display = 'block';
+                
+                const walletKey = window.stellarAdsExtension.userWallet.publicKey;
+                document.getElementById('wallet-key').textContent = 
+                    walletKey.substring(0, 8) + '...' + walletKey.substring(walletKey.length - 8);
+                
+                refreshBalance();
+            } else {
+                statusElement.className = 'extension-status extension-disconnected';
+                statusElement.textContent = '❌ Extensão não detectada';
+                walletInfo.style.display = 'none';
+            }
+        }
+
+        // Atualizar saldo
+        async function refreshBalance() {
+            if (!window.stellarAdsExtension) return;
+            
+            addLog('💰 Atualizando saldo da carteira...');
+            
+            try {
+                const balance = await window.stellarAdsExtension.getCurrentBalance();
+                document.getElementById('wallet-balance').textContent = balance.toFixed(4);
+                addLog(`💰 Saldo atualizado: ${balance.toFixed(4)} XLM`);
+            } catch (error) {
+                addLog(`❌ Erro ao atualizar saldo: ${error.message}`, true);
+            }
+        }
+
+        // Recarregar anúncio
+        function reloadAd() {
+            addLog('🔄 Recarregando anúncio...');
+            
+            if (window.StellarAdsSDK && window.StellarAdsSDK.reinitialize) {
+                window.StellarAdsSDK.reinitialize();
+                stats.impressions++;
+                updateStats();
+                addLog('📺 Anúncio recarregado');
+            }
+        }
+
+        // Simular clique
+        function simulateClick() {
+            addLog('👆 Simulando clique no anúncio...');
+            stats.clicks++;
+            updateStats();
+            
+            // Simular recompensa
+            if (window.stellarAdsExtension) {
+                const rewardAmount = 0.01; // Simulando 0.01 XLM de recompensa
+                stats.rewards++;
+                stats.totalEarned += rewardAmount;
+                
+                window.stellarAdsExtension.onRewardReceived({
+                    amount: rewardAmount,
+                    type: 'click',
+                    timestamp: new Date().toISOString()
+                });
+                
+                document.getElementById('total-earned').textContent = stats.totalEarned.toFixed(4);
+                updateStats();
+                addLog(`🎉 Recompensa simulada: +${rewardAmount} XLM`);
+            }
+        }
+
+        // Atualizar estatísticas
+        function updateStats() {
+            document.getElementById('impressions-count').textContent = stats.impressions;
+            document.getElementById('clicks-count').textContent = stats.clicks;
+            document.getElementById('rewards-count').textContent = stats.rewards;
+        }
+
+        // Limpar logs
+        function clearLogs() {
+            document.getElementById('system-logs').innerHTML = 
+                '<div class="log-entry">Logs limpos - sistema pronto</div>';
+        }
+
+        // Verificar status da extensão periodicamente
+        setInterval(() => {
+            const connected = !!(window.stellarAdsExtension && window.stellarAdsExtension.userWallet);
+            const currentStatus = document.getElementById('extension-status').textContent;
+            
+            if (connected && currentStatus.includes('não detectada')) {
+                updateExtensionStatus(true);
+                addLog('🔌 Extensão detectada automaticamente!');
+            } else if (!connected && currentStatus.includes('Conectada')) {
+                updateExtensionStatus(false);
+                addLog('⚠️ Extensão desconectada', true);
+            }
+        }, 2000);
+
+        // Interceptar logs do SDK
+        if (window.StellarAdsSDK) {
+            const originalLog = console.log;
+            const originalError = console.error;
+            
+            console.log = function(...args) {
+                if (args[0] && args[0].includes('[Stellar Ads SDK]')) {
+                    addLog(args.slice(1).join(' '));
+                }
+                originalLog.apply(console, args);
+            };
+            
+            console.error = function(...args) {
+                if (args[0] && args[0].includes('[Stellar Ads SDK]')) {
+                    addLog(args.slice(1).join(' '), true);
+                }
+                originalError.apply(console, args);
+            };
+        }
+
+        // Log inicial
+        addLog('🚀 Sistema de demonstração iniciado');
+        addLog('ℹ️ Clique em "Simular Extensão" para começar');
+    </script>
+</body>
+</html>

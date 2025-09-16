@@ -310,11 +310,11 @@ router.post("/validate-site", (req, res) => {
 
 /**
  * POST /api/impression - Endpoint para registrar impressões (visualizações)
- * Parâmetros: campaignId, siteId (obrigatórios)
+ * Parâmetros: campaignId, siteId, userPublicKey (opcional), hasWallet (opcional)
  */
-router.post("/impression", (req, res) => {
+router.post("/impression", async (req, res) => {
   try {
-    const { campaignId, siteId } = req.body;
+    const { campaignId, siteId, userPublicKey, hasWallet } = req.body;
 
     // Validação de parâmetros
     if (!campaignId || !siteId) {
@@ -330,22 +330,44 @@ router.post("/impression", (req, res) => {
       userAgent: req.get("User-Agent"),
       referer: req.get("Referer"),
       timestamp: new Date().toISOString(),
+      userPublicKey,
+      hasWallet,
     };
 
-    console.log(
-      `👁️  Impressão registrada - Campanha: ${campaignId}, Site: ${siteId}`
-    );
+    console.log(`� Registrando impressão - Campanha: ${campaignId}, Site: ${siteId}, Usuário: ${userPublicKey ? 'Com carteira' : 'Sem carteira'}`);
 
-    // Registrar impressão assíncronamente
-    setImmediate(() => {
-      adMatchingService.recordImpression(campaignId, siteId, context);
-    });
+    // Registrar impressão no banco de dados
+    await adMatchingService.recordImpression(campaignId, siteId, context);
 
-    // Resposta rápida
-    res.json({
+    let response = {
       success: true,
-      message: "Impressão registrada",
-    });
+      message: "Impressão registrada com sucesso",
+    };
+
+    // Se o usuário tem carteira, verificar elegibilidade para recompensa
+    if (userPublicKey && hasWallet) {
+      try {
+        const rewardResult = await processUserImpressionReward(
+          userPublicKey,
+          campaignId,
+          siteId
+        );
+        
+        if (rewardResult.eligible) {
+          response.userReward = {
+            amount: rewardResult.amount,
+            transactionId: rewardResult.transactionId,
+            type: 'impression'
+          };
+          console.log(`💰 Recompensa processada para usuário ${userPublicKey}: ${rewardResult.amount} XLM`);
+        }
+      } catch (rewardError) {
+        console.error("Erro ao processar recompensa do usuário:", rewardError);
+        // Não falhar a impressão por erro na recompensa
+      }
+    }
+
+    res.json(response);
   } catch (error) {
     console.error("Erro no endpoint /api/impression:", error);
     res.status(500).json({
@@ -515,5 +537,248 @@ router.get("/user-rewards", (req, res) => {
     });
   }
 });
+
+/**
+ * POST /api/user-wallet - Endpoint para registrar/atualizar carteira do usuário
+ */
+router.post("/user-wallet", async (req, res) => {
+  try {
+    const { publicKey } = req.body;
+
+    // Validação de parâmetros
+    if (!publicKey) {
+      return res.status(400).json({
+        success: false,
+        error: "Parâmetro publicKey é obrigatório",
+      });
+    }
+
+    console.log(`🔑 Registrando carteira do usuário: ${publicKey}`);
+
+    // Registrar/atualizar carteira no banco de dados
+    const db = await database.getConnection();
+    
+    // Verificar se carteira já existe
+    const existingWallet = await db.get(
+      `SELECT * FROM user_wallets WHERE public_key = ?`,
+      [publicKey]
+    );
+
+    if (existingWallet) {
+      // Atualizar timestamp da última atividade
+      await db.run(
+        `UPDATE user_wallets SET last_seen = CURRENT_TIMESTAMP WHERE public_key = ?`,
+        [publicKey]
+      );
+      console.log(`📝 Carteira atualizada: ${publicKey}`);
+    } else {
+      // Criar nova entrada para a carteira
+      await db.run(
+        `INSERT INTO user_wallets (public_key, created_at, last_seen) 
+         VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [publicKey]
+      );
+      console.log(`✅ Nova carteira registrada: ${publicKey}`);
+    }
+
+    res.json({
+      success: true,
+      message: "Carteira registrada com sucesso",
+    });
+  } catch (error) {
+    console.error("Erro no endpoint /api/user-wallet:", error);
+    res.status(500).json({
+      success: false,
+      error: "Erro interno do servidor",
+    });
+  }
+});
+
+/**
+ * GET /api/user-balance - Endpoint para verificar saldo de uma carteira
+ */
+router.get("/user-balance", async (req, res) => {
+  try {
+    const { publicKey } = req.query;
+
+    // Validação de parâmetros
+    if (!publicKey) {
+      return res.status(400).json({
+        success: false,
+        error: "Parâmetro publicKey é obrigatório",
+      });
+    }
+
+    console.log(`💰 Verificando saldo da carteira: ${publicKey}`);
+
+    // Consultar saldo via Stellar
+    const balance = await stellarService.getAccountBalance(publicKey);
+
+    if (balance !== null) {
+      res.json({
+        success: true,
+        balance: balance,
+        publicKey: publicKey,
+      });
+    } else {
+      res.json({
+        success: false,
+        message: "Conta não encontrada na rede Stellar",
+        publicKey: publicKey,
+      });
+    }
+  } catch (error) {
+    console.error("Erro no endpoint /api/user-balance:", error);
+    res.status(500).json({
+      success: false,
+      error: "Erro interno do servidor",
+    });
+  }
+});
+
+/**
+ * Processa recompensa de impressão para usuário
+ */
+async function processUserImpressionReward(userPublicKey, campaignId, siteId) {
+  try {
+    // Verificar elegibilidade do usuário para recompensa
+    const db = await database.getConnection();
+    
+    // Verificar última recompensa do usuário (limite de tempo)
+    const lastReward = await db.get(
+      `SELECT created_at FROM user_rewards 
+       WHERE user_public_key = ? AND type = 'impression'
+       ORDER BY created_at DESC LIMIT 1`,
+      [userPublicKey]
+    );
+
+    // Aplicar limite de 1 recompensa por impressão a cada 10 minutos
+    if (lastReward) {
+      const lastRewardTime = new Date(lastReward.created_at);
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+      
+      if (lastRewardTime > tenMinutesAgo) {
+        return { eligible: false, reason: 'cooldown' };
+      }
+    }
+
+    // Definir valor da recompensa
+    const rewardAmount = 0.001; // 0.001 XLM por impressão
+
+    // Buscar informações da campanha para pagamento
+    const campaign = await db.get(
+      `SELECT * FROM campaigns WHERE id = ?`,
+      [campaignId]
+    );
+
+    if (!campaign || campaign.status !== 'active') {
+      return { eligible: false, reason: 'campaign_inactive' };
+    }
+
+    // Processar pagamento via Stellar
+    const paymentResult = await stellarService.sendPayment(
+      userPublicKey,
+      rewardAmount,
+      `Recompensa por visualizar anúncio - Campanha ${campaignId}`
+    );
+
+    if (paymentResult.success) {
+      // Registrar recompensa no banco de dados
+      await db.run(
+        `INSERT INTO user_rewards 
+         (user_public_key, campaign_id, site_id, type, amount, transaction_id, created_at)
+         VALUES (?, ?, ?, 'impression', ?, ?, CURRENT_TIMESTAMP)`,
+        [
+          userPublicKey,
+          campaignId,
+          siteId,
+          rewardAmount,
+          paymentResult.transactionId
+        ]
+      );
+
+      return {
+        eligible: true,
+        amount: rewardAmount,
+        transactionId: paymentResult.transactionId
+      };
+    } else {
+      return { eligible: false, reason: 'payment_failed' };
+    }
+
+  } catch (error) {
+    console.error('Erro ao processar recompensa de impressão:', error);
+    return { eligible: false, reason: 'error' };
+  }
+}
+
+/**
+ * Busca informações de recompensas do usuário
+ */
+async function getUserRewardsInfo(siteId, userPublicKey) {
+  try {
+    const db = await database.getConnection();
+    
+    let canReceiveRewards = false;
+    let nextRewardInMinutes = 0;
+    let userStats = {
+      total_impressions: 0,
+      total_clicks: 0,
+      total_earned_xlm: 0,
+      last_reward_at: null
+    };
+
+    if (userPublicKey) {
+      // Buscar estatísticas do usuário
+      const stats = await db.get(
+        `SELECT 
+           COUNT(CASE WHEN type = 'impression' THEN 1 END) as total_impressions,
+           COUNT(CASE WHEN type = 'click' THEN 1 END) as total_clicks,
+           COALESCE(SUM(amount), 0) as total_earned_xlm,
+           MAX(created_at) as last_reward_at
+         FROM user_rewards 
+         WHERE user_public_key = ?`,
+        [userPublicKey]
+      );
+
+      if (stats) {
+        userStats = stats;
+      }
+
+      // Verificar se pode receber recompensa (última recompensa > 10 minutos)
+      if (userStats.last_reward_at) {
+        const lastRewardTime = new Date(userStats.last_reward_at);
+        const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+        
+        if (lastRewardTime <= tenMinutesAgo) {
+          canReceiveRewards = true;
+        } else {
+          const nextReward = new Date(lastRewardTime.getTime() + 10 * 60 * 1000);
+          nextRewardInMinutes = Math.ceil((nextReward - Date.now()) / (60 * 1000));
+        }
+      } else {
+        canReceiveRewards = true;
+      }
+    }
+
+    return {
+      canReceiveRewards,
+      nextRewardInMinutes,
+      statistics: {
+        totalImpressions: userStats.total_impressions || 0,
+        totalClicks: userStats.total_clicks || 0,
+        totalEarnedXLM: parseFloat(userStats.total_earned_xlm || 0),
+        lastRewardAt: userStats.last_reward_at,
+      },
+      rewardRates: {
+        impressionReward: 0.001, // XLM por impressão
+        clickRewardPercentage: 10, // % do valor do clique
+      },
+    };
+  } catch (error) {
+    console.error('Erro ao buscar informações de recompensas:', error);
+    throw error;
+  }
+}
 
 module.exports = router;

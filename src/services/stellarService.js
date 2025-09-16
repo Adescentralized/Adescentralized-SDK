@@ -45,6 +45,42 @@ class StellarService {
   }
 
   /**
+   * Consulta o saldo XLM de uma conta Stellar
+   */
+  async getAccountBalance(publicKey) {
+    try {
+      if (!this.initialized || !this.server) {
+        throw new Error("Stellar service não inicializado");
+      }
+
+      console.log(`🔍 Consultando saldo da conta: ${publicKey}`);
+
+      const account = await this.server.loadAccount(publicKey);
+
+      // Encontrar o saldo em XLM (native)
+      const xlmBalance = account.balances.find(
+        (balance) => balance.asset_type === "native"
+      );
+
+      if (xlmBalance) {
+        const balance = parseFloat(xlmBalance.balance);
+        console.log(`💰 Saldo encontrado: ${balance} XLM`);
+        return balance;
+      }
+
+      return 0;
+    } catch (error) {
+      if (error.response && error.response.status === 404) {
+        console.log(`ℹ️  Conta ${publicKey} não encontrada na rede Stellar`);
+        return null;
+      }
+
+      console.error(`❌ Erro ao consultar saldo de ${publicKey}:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Processa pagamento para clique de anúncio
    * Divide o valor entre editor (70%) e plataforma (30%) por padrão
    */
@@ -218,6 +254,126 @@ class StellarService {
   }
 
   /**
+   * Envia pagamento direto para uma conta Stellar (usado para recompensas)
+   */
+  async sendPayment(destinationKey, amount, memo = "") {
+    try {
+      if (!this.initialized || !this.platformKeypair) {
+        throw new Error("Serviço Stellar não inicializado ou sem chave secreta");
+      }
+
+      console.log(`💸 Enviando pagamento: ${amount} XLM para ${destinationKey}`);
+
+      // Verificar se a conta de destino existe
+      try {
+        await this.server.loadAccount(destinationKey);
+      } catch (error) {
+        if (error.response && error.response.status === 404) {
+          console.log(`🆕 Conta ${destinationKey} não existe, criando...`);
+
+          // Criar conta com saldo mínimo
+          const createAccountResult = await this.createAccount(destinationKey);
+          if (!createAccountResult.success) {
+            return { success: false, error: "Falha ao criar conta" };
+          }
+        } else {
+          throw error;
+        }
+      }
+
+      // Buscar conta da plataforma
+      const platformAccount = await this.server.loadAccount(
+        this.platformKeypair.publicKey()
+      );
+
+      // Construir transação
+      const transaction = new StellarSdk.TransactionBuilder(platformAccount, {
+        fee: StellarSdk.BASE_FEE,
+        networkPassphrase:
+          process.env.STELLAR_NETWORK === "mainnet"
+            ? StellarSdk.Networks.PUBLIC
+            : StellarSdk.Networks.TESTNET,
+      })
+        .addOperation(
+          StellarSdk.Operation.payment({
+            destination: destinationKey,
+            asset: StellarSdk.Asset.native(),
+            amount: amount.toString(),
+          })
+        )
+        .addMemo(StellarSdk.Memo.text(memo.substring(0, 28))) // Limit memo to 28 chars
+        .setTimeout(30)
+        .build();
+
+      // Assinar transação
+      transaction.sign(this.platformKeypair);
+
+      // Submeter transação
+      const result = await this.server.submitTransaction(transaction);
+
+      console.log(`✅ Pagamento enviado com sucesso! TX: ${result.hash}`);
+
+      return {
+        success: true,
+        transactionId: result.hash,
+        amount: amount,
+      };
+    } catch (error) {
+      console.error(`❌ Erro ao enviar pagamento:`, error);
+
+      return {
+        success: false,
+        error: error.message || "Erro desconhecido no pagamento",
+      };
+    }
+  }
+
+  /**
+   * Cria uma nova conta Stellar com o saldo mínimo necessário
+   */
+  async createAccount(newAccountKey) {
+    try {
+      console.log(`🆕 Criando nova conta Stellar: ${newAccountKey}`);
+
+      const platformAccount = await this.server.loadAccount(
+        this.platformKeypair.publicKey()
+      );
+
+      const transaction = new StellarSdk.TransactionBuilder(platformAccount, {
+        fee: StellarSdk.BASE_FEE,
+        networkPassphrase:
+          process.env.STELLAR_NETWORK === "mainnet"
+            ? StellarSdk.Networks.PUBLIC
+            : StellarSdk.Networks.TESTNET,
+      })
+        .addOperation(
+          StellarSdk.Operation.createAccount({
+            destination: newAccountKey,
+            startingBalance: "1", // 1 XLM mínimo para criar conta
+          })
+        )
+        .setTimeout(30)
+        .build();
+
+      transaction.sign(this.platformKeypair);
+      const result = await this.server.submitTransaction(transaction);
+
+      console.log(`✅ Conta criada com sucesso! TX: ${result.hash}`);
+
+      return {
+        success: true,
+        transactionId: result.hash,
+      };
+    } catch (error) {
+      console.error(`❌ Erro ao criar conta:`, error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
    * Verifica se uma conta Stellar existe e tem fundos suficientes
    */
   async validateStellarAccount(publicKey, requiredAmount = 0) {
@@ -267,6 +423,107 @@ class StellarService {
     } catch (error) {
       console.error("Erro ao buscar transações:", error);
       return [];
+    }
+  }
+
+  /**
+   * Consulta saldo de uma conta Stellar
+   * @param {string} publicKey - Chave pública da conta
+   * @returns {Promise<number|null>} Saldo em XLM ou null se conta não existir
+   */
+  async getAccountBalance(publicKey) {
+    try {
+      console.log(`🔍 Consultando saldo da conta: ${publicKey}`);
+
+      const account = await this.server.loadAccount(publicKey);
+      const xlmBalance = account.balances.find(
+        (balance) => balance.asset_type === "native"
+      );
+
+      if (xlmBalance) {
+        const balance = parseFloat(xlmBalance.balance);
+        console.log(`💰 Saldo encontrado: ${balance} XLM`);
+        return balance;
+      }
+
+      console.log(`ℹ️  Conta não possui saldo XLM`);
+      return 0;
+    } catch (error) {
+      if (error.response && error.response.status === 404) {
+        console.log(`ℹ️  Conta não encontrada na rede Stellar: ${publicKey}`);
+        return null;
+      }
+
+      console.error(`❌ Erro ao consultar saldo:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Envia pagamento para uma conta específica
+   * @param {string} destinationPublicKey - Chave pública de destino
+   * @param {number} amount - Valor em XLM
+   * @param {string} memo - Memo da transação
+   * @returns {Promise<{success: boolean, transactionId?: string, error?: string}>}
+   */
+  async sendPayment(destinationPublicKey, amount, memo = '') {
+    try {
+      console.log(`💸 Enviando pagamento: ${amount} XLM para ${destinationPublicKey}`);
+
+      // Carregar conta da plataforma
+      const platformAccount = await this.server.loadAccount(
+        this.platformKeypair.publicKey()
+      );
+
+      // Criar transação
+      const transactionBuilder = new StellarSdk.TransactionBuilder(
+        platformAccount,
+        {
+          fee: StellarSdk.BASE_FEE,
+          networkPassphrase:
+            process.env.STELLAR_NETWORK === "mainnet"
+              ? StellarSdk.Networks.PUBLIC
+              : StellarSdk.Networks.TESTNET,
+        }
+      );
+
+      // Adicionar operação de pagamento
+      transactionBuilder.addOperation(
+        StellarSdk.Operation.payment({
+          destination: destinationPublicKey,
+          asset: StellarSdk.Asset.native(),
+          amount: amount.toFixed(7),
+        })
+      );
+
+      // Adicionar memo se fornecido
+      if (memo) {
+        transactionBuilder.addMemo(StellarSdk.Memo.text(memo));
+      }
+
+      // Configurar timeout
+      transactionBuilder.setTimeout(30);
+
+      const transaction = transactionBuilder.build();
+
+      // Assinar transação
+      transaction.sign(this.platformKeypair);
+
+      // Submeter transação
+      const result = await this.server.submitTransaction(transaction);
+
+      console.log(`✅ Pagamento enviado com sucesso - TX: ${result.hash}`);
+
+      return {
+        success: true,
+        transactionId: result.hash,
+      };
+    } catch (error) {
+      console.error(`❌ Erro ao enviar pagamento:`, error);
+      return {
+        success: false,
+        error: error.message,
+      };
     }
   }
 

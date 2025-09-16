@@ -51,7 +51,10 @@
     try {
       log("Inicializando Stellar Ads SDK...");
 
-      // 1. Obter configuração (siteId e tags)
+      // 1. Verificar carteira do usuário na extensão
+      checkUserWallet();
+
+      // 2. Obter configuração (siteId e tags)
       const config = extractConfiguration();
       if (!config.siteId) {
         logError(
@@ -60,7 +63,7 @@
         return;
       }
 
-      // 2. Verificar se o container existe
+      // 3. Verificar se o container existe
       const container = document.getElementById(
         config.containerId || CONFIG.CONTAINER_ID
       );
@@ -73,10 +76,156 @@
         return;
       }
 
-      // 3. Buscar e renderizar anúncio com tags personalizadas
+      // 4. Buscar e renderizar anúncio com tags personalizadas
       fetchAndRenderAd(config.siteId, container, config.tags);
     } catch (error) {
       logError("Erro na inicialização:", error);
+    }
+  }
+
+  /**
+   * Verifica se a extensão está instalada e conecta com a carteira
+   */
+  async function checkUserWallet() {
+    try {
+      log("Verificando extensão Stellar Wallet...");
+
+      // Verifica se a extensão injetou o objeto stellarWallet
+      if (window.stellarWallet) {
+        log("🔌 Extensão Stellar Wallet encontrada!");
+        
+        try {
+          // Conectar com a carteira
+          const account = await window.stellarWallet.connect();
+          log("💳 Conectado à carteira:", {
+            publicKey: account.publicKey,
+            extensionDetected: true
+          });
+
+          // Salvar informações da carteira
+          window.StellarAdsSDK.userWallet = {
+            publicKey: account.publicKey,
+            connected: true
+          };
+          
+          // Verificar saldo da carteira
+          await checkUserBalanceFromExtension();
+          
+          return true;
+        } catch (connectError) {
+          log("⚠️  Usuário negou conexão ou erro na extensão:", connectError.message);
+          return false;
+        }
+      } else {
+        log("⚠️  Extensão Stellar Wallet não encontrada");
+        
+        // Verificar periodicamente se a extensão foi carregada (máximo 10 tentativas)
+        if (!window.StellarAdsSDK.walletCheckAttempts) {
+          window.StellarAdsSDK.walletCheckAttempts = 0;
+        }
+        
+        if (window.StellarAdsSDK.walletCheckAttempts < 10) {
+          window.StellarAdsSDK.walletCheckAttempts++;
+          setTimeout(checkUserWallet, 1000);
+        }
+        
+        return false;
+      }
+    } catch (error) {
+      logError("Erro ao verificar carteira do usuário:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Verifica o saldo da carteira do usuário usando a extensão
+   */
+  async function checkUserBalanceFromExtension() {
+    try {
+      log("🔍 Verificando saldo da carteira via extensão...");
+      
+      if (window.stellarWallet) {
+        const balance = await window.stellarWallet.getBalance();
+        window.StellarAdsSDK.userBalance = parseFloat(balance.native);
+        log("💰 Saldo do usuário:", balance.native, "XLM");
+      }
+    } catch (error) {
+      log("Erro ao verificar saldo via extensão:", error);
+      
+      // Fallback: verificar via API do backend
+      const userWallet = window.StellarAdsSDK.userWallet;
+      if (userWallet && userWallet.publicKey) {
+        await checkUserBalanceFromAPI(userWallet.publicKey);
+      }
+    }
+  }
+
+  /**
+   * Verifica o saldo da carteira do usuário via API (fallback)
+   */
+  async function checkUserBalanceFromAPI(publicKey) {
+    try {
+      log("🔍 Verificando saldo via API (fallback)...");
+      
+      const response = await fetch(`${CONFIG.API_BASE_URL}/api/user-balance?publicKey=${encodeURIComponent(publicKey)}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'omit'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          window.StellarAdsSDK.userBalance = parseFloat(data.balance);
+          log("💰 Saldo do usuário (API):", data.balance, "XLM");
+        } else {
+          log("ℹ️  Conta não encontrada na rede Stellar (conta nova)");
+        }
+      }
+    } catch (error) {
+      log("Erro ao verificar saldo via API:", error);
+    }
+  }
+
+  /**
+   * Registra ou atualiza a carteira do usuário no backend
+   */
+  async function registerUserWallet() {
+    try {
+      const userWallet = window.StellarAdsSDK.userWallet;
+      if (!userWallet) {
+        log("Nenhuma carteira do usuário disponível para registro");
+        return false;
+      }
+
+      log("📝 Registrando carteira do usuário no backend...");
+
+      const response = await fetch(`${CONFIG.API_BASE_URL}/api/user-wallet`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          publicKey: userWallet.publicKey,
+          // Nunca enviar a chave privada para o backend
+        }),
+        credentials: 'omit'
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        log("✅ Carteira registrada com sucesso");
+        return true;
+      } else {
+        logError("Erro ao registrar carteira:", data.error);
+        return false;
+      }
+    } catch (error) {
+      logError("Erro ao registrar carteira:", error);
+      return false;
     }
   }
 
@@ -406,16 +555,28 @@
     try {
       // Obter configuração atual
       const config = extractConfiguration();
+      const userWallet = window.StellarAdsSDK.userWallet;
 
       // Enviar requisição para registrar a impressão
       const impressionData = {
         campaignId: adData.campaignId,
         siteId: config.siteId,
+        userPublicKey: userWallet ? userWallet.publicKey : null, // Incluir carteira do usuário
+        hasWallet: !!userWallet
       };
 
       if (!config.siteId) {
         logError("Não foi possível obter siteId para tracking de impressão");
         return;
+      }
+
+      // Registrar carteira do usuário se ainda não foi registrada
+      if (userWallet && !window.StellarAdsSDK.walletRegistered) {
+        registerUserWallet().then((registered) => {
+          if (registered) {
+            window.StellarAdsSDK.walletRegistered = true;
+          }
+        });
       }
 
       fetch(`${CONFIG.API_BASE_URL}/api/impression`, {
@@ -428,12 +589,16 @@
       })
         .then((response) => {
           if (response.ok) {
-            log(
-              "👁️  Impressão registrada no servidor para campanha:",
-              adData.campaignId
-            );
-          } else {
-            logError("Aviso: Falha ao registrar impressão no servidor");
+            return response.json();
+          }
+          throw new Error(`HTTP ${response.status}`);
+        })
+        .then((data) => {
+          log("👁️  Impressão registrada no servidor para campanha:", adData.campaignId);
+          
+          // Se há recompensa para o usuário, processar pagamento
+          if (data.success && data.userReward && userWallet) {
+            processUserReward(data.userReward, userWallet);
           }
         })
         .catch((error) => {
@@ -447,30 +612,157 @@
   }
 
   /**
+   * Processa recompensa para o usuário
+   */
+  async function processUserReward(rewardData, userWallet) {
+    try {
+      log("🎁 Processando recompensa para o usuário:", rewardData);
+
+      // Mostrar notificação de recompensa
+      showRewardNotification(rewardData);
+
+      // Atualizar saldo local
+      if (window.StellarAdsSDK.userBalance !== undefined) {
+        window.StellarAdsSDK.userBalance = parseFloat(window.StellarAdsSDK.userBalance) + parseFloat(rewardData.amount);
+        log("💰 Novo saldo estimado:", window.StellarAdsSDK.userBalance, "XLM");
+      }
+
+      // Atualizar saldo via extensão após receber recompensa
+      if (window.stellarWallet) {
+        try {
+          // Aguardar alguns segundos para a transação ser processada
+          setTimeout(async () => {
+            await checkUserBalanceFromExtension();
+          }, 3000);
+        } catch (error) {
+          log("Erro ao atualizar saldo via extensão:", error);
+        }
+      }
+
+      // Disparar evento customizado para a extensão escutar
+      if (window.stellarWallet) {
+        try {
+          window.dispatchEvent(new CustomEvent('stellarRewardReceived', {
+            detail: {
+              amount: rewardData.amount,
+              transactionId: rewardData.transactionId,
+              type: rewardData.type,
+              timestamp: new Date().toISOString()
+            }
+          }));
+        } catch (error) {
+          log("Erro ao disparar evento de recompensa:", error);
+        }
+      }
+
+    } catch (error) {
+      logError("Erro ao processar recompensa do usuário:", error);
+    }
+  }
+
+  /**
+   * Mostra notificação de recompensa na tela
+   */
+  function showRewardNotification(rewardData) {
+    try {
+      // Criar elemento de notificação
+      const notification = document.createElement('div');
+      notification.className = 'stellar-reward-notification';
+      notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+        color: white;
+        padding: 15px 20px;
+        border-radius: 8px;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        z-index: 10000;
+        animation: slideInRight 0.3s ease-out;
+        max-width: 300px;
+      `;
+
+      notification.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="font-size: 24px;">🎉</div>
+          <div>
+            <div style="font-weight: bold; margin-bottom: 4px;">Recompensa Recebida!</div>
+            <div style="font-size: 12px; opacity: 0.9;">+${rewardData.amount} XLM por visualizar anúncio</div>
+          </div>
+        </div>
+      `;
+
+      // Adicionar CSS da animação
+      if (!document.getElementById('stellar-reward-styles')) {
+        const styles = document.createElement('style');
+        styles.id = 'stellar-reward-styles';
+        styles.textContent = `
+          @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+          }
+          @keyframes slideOutRight {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+          }
+        `;
+        document.head.appendChild(styles);
+      }
+
+      // Adicionar ao body
+      document.body.appendChild(notification);
+
+      // Remover após 4 segundos
+      setTimeout(() => {
+        notification.style.animation = 'slideOutRight 0.3s ease-in';
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+          }
+        }, 300);
+      }, 4000);
+
+      log("✨ Notificação de recompensa exibida");
+
+    } catch (error) {
+      log("Erro ao exibir notificação:", error);
+    }
+  }
+
+  /**
    * Verifica e exibe recompensas do usuário
    */
   function checkAndDisplayUserRewards(container) {
     try {
       const config = extractConfiguration();
+      const userWallet = window.StellarAdsSDK.userWallet;
 
       if (!config.siteId) {
         return;
       }
 
+      // Se não há carteira, mostrar informações sobre a extensão
+      if (!userWallet) {
+        displayExtensionPrompt(container);
+        return;
+      }
+
       // Buscar informações de recompensas do usuário
-      fetch(
-        `${CONFIG.API_BASE_URL}/api/user-rewards?siteId=${encodeURIComponent(
-          config.siteId
-        )}`,
-        {
-          method: "GET",
-          credentials: "omit",
-        }
-      )
+      const params = new URLSearchParams({
+        siteId: config.siteId,
+        userPublicKey: userWallet.publicKey
+      });
+
+      fetch(`${CONFIG.API_BASE_URL}/api/user-rewards?${params.toString()}`, {
+        method: "GET",
+        credentials: "omit",
+      })
         .then((response) => response.json())
         .then((data) => {
           if (data.success && data.userRewards) {
-            displayUserRewardsInfo(container, data.userRewards);
+            displayUserRewardsInfo(container, data.userRewards, userWallet);
           }
         })
         .catch((error) => {
@@ -483,9 +775,64 @@
   }
 
   /**
+   * Exibe prompt para instalar/configurar a extensão
+   */
+  function displayExtensionPrompt(container) {
+    try {
+      // Criar elemento de prompt para extensão
+      const extensionPrompt = document.createElement("div");
+      extensionPrompt.className = "stellar-extension-prompt";
+      extensionPrompt.style.cssText = `
+        position: absolute;
+        bottom: -80px;
+        left: 0;
+        right: 0;
+        background: linear-gradient(135deg, #FF6B6B 0%, #EE5A24 100%);
+        color: white;
+        font-family: Arial, sans-serif;
+        font-size: 11px;
+        padding: 10px;
+        border-radius: 4px;
+        text-align: center;
+        opacity: 0;
+        transition: opacity 0.3s ease, bottom 0.3s ease;
+        z-index: 10;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      `;
+
+      extensionPrompt.innerHTML = `
+        🔗 <strong>Instale nossa extensão</strong><br>
+        Crie sua carteira e comece a ganhar XLM!
+      `;
+
+      // Adicionar ao container do anúncio
+      const adWrapper = container.querySelector(".stellar-ad-wrapper");
+      if (adWrapper) {
+        adWrapper.style.position = "relative";
+        adWrapper.appendChild(extensionPrompt);
+
+        // Mostrar prompt ao passar o mouse
+        adWrapper.addEventListener("mouseenter", () => {
+          extensionPrompt.style.opacity = "1";
+          extensionPrompt.style.bottom = "-85px";
+        });
+
+        adWrapper.addEventListener("mouseleave", () => {
+          extensionPrompt.style.opacity = "0";
+          extensionPrompt.style.bottom = "-80px";
+        });
+      }
+
+      log("🔗 Prompt de extensão exibido");
+    } catch (error) {
+      log("Erro ao exibir prompt de extensão:", error);
+    }
+  }
+
+  /**
    * Exibe informações de recompensas do usuário
    */
-  function displayUserRewardsInfo(container, rewardsData) {
+  function displayUserRewardsInfo(container, rewardsData, userWallet) {
     try {
       // Criar elemento de informações de recompensa
       const rewardsInfo = document.createElement("div");
@@ -509,26 +856,27 @@
       `;
 
       let infoText = "";
+      const currentBalance = window.StellarAdsSDK.userBalance || 0;
 
       if (rewardsData.canReceiveRewards) {
         infoText = `
-          💰 Ganhe ${
-            rewardsData.rewardRates.impressionReward
-          } XLM visualizando + ${
-          rewardsData.rewardRates.clickRewardPercentage
-        }% por clique!<br>
-          📊 Total ganho: ${rewardsData.statistics.totalEarnedXLM.toFixed(
-            4
-          )} XLM
+          💰 Ganhe ${rewardsData.rewardRates.impressionReward} XLM visualizando + ${rewardsData.rewardRates.clickRewardPercentage}% por clique!<br>
+          👛 Saldo atual: ${parseFloat(currentBalance).toFixed(4)} XLM<br>
+          📊 Total ganho: ${rewardsData.statistics.totalEarnedXLM.toFixed(4)} XLM
         `;
       } else {
         const hoursLeft = Math.ceil(rewardsData.nextRewardInMinutes / 60);
         infoText = `
           ⏰ Próxima recompensa em ~${hoursLeft}h<br>
-          📊 Total ganho: ${rewardsData.statistics.totalEarnedXLM.toFixed(
-            4
-          )} XLM
+          👛 Saldo atual: ${parseFloat(currentBalance).toFixed(4)} XLM<br>
+          📊 Total ganho: ${rewardsData.statistics.totalEarnedXLM.toFixed(4)} XLM
         `;
+      }
+
+      // Adicionar informações da carteira se disponível
+      if (userWallet) {
+        const shortKey = userWallet.publicKey.substring(0, 8) + "...";
+        infoText += `<br>🔑 Carteira: ${shortKey}`;
       }
 
       rewardsInfo.innerHTML = infoText;
@@ -542,7 +890,7 @@
         // Mostrar informações ao passar o mouse
         adWrapper.addEventListener("mouseenter", () => {
           rewardsInfo.style.opacity = "1";
-          rewardsInfo.style.bottom = "-65px";
+          rewardsInfo.style.bottom = "-70px"; // Ajustado para mais conteúdo
         });
 
         adWrapper.addEventListener("mouseleave", () => {
@@ -602,9 +950,74 @@
 
   // Exportar funções para uso externo (debugging)
   window.StellarAdsSDK = {
-    version: "1.0.0",
+    version: "1.2.0",
     debug: CONFIG.DEBUG,
     reinitialize: initializeStellarAds,
     config: CONFIG,
+    userWallet: null,
+    userBalance: 0,
+    walletRegistered: false,
+    walletCheckAttempts: 0,
+    
+    // Funções públicas para interação com a extensão
+    connectWallet: async function() {
+      if (window.stellarWallet) {
+        try {
+          const account = await window.stellarWallet.connect();
+          this.userWallet = {
+            publicKey: account.publicKey,
+            connected: true
+          };
+          await checkUserBalanceFromExtension();
+          log("💳 Carteira conectada:", account.publicKey);
+          return account;
+        } catch (error) {
+          logError("Erro ao conectar carteira:", error);
+          return null;
+        }
+      } else {
+        logError("Extensão Stellar Wallet não encontrada");
+        return null;
+      }
+    },
+    
+    getUserWallet: function() {
+      return this.userWallet;
+    },
+    
+    getUserBalance: function() {
+      return this.userBalance;
+    },
+    
+    // Verificar se extensão está disponível
+    isWalletAvailable: function() {
+      return !!window.stellarWallet;
+    },
+    
+    // Forçar reconexão com a carteira
+    reconnectWallet: async function() {
+      this.walletCheckAttempts = 0;
+      return await checkUserWallet();
+    },
+    
+    // Callback para quando a extensão é carregada
+    onWalletReady: function(callback) {
+      if (this.isWalletAvailable()) {
+        callback(window.stellarWallet);
+      } else {
+        // Aguardar extensão ser carregada
+        const checkInterval = setInterval(() => {
+          if (this.isWalletAvailable()) {
+            clearInterval(checkInterval);
+            callback(window.stellarWallet);
+          }
+        }, 1000);
+        
+        // Timeout após 10 segundos
+        setTimeout(() => {
+          clearInterval(checkInterval);
+        }, 10000);
+      }
+    }
   };
 })();

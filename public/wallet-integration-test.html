@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Integração - SDK + Extensão Stellar Wallet</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 16px;
+        }
+
+        .status-panel {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-left: 4px solid #667eea;
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 10px;
+            background: white;
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .status-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .status-label {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .status-value {
+            font-family: 'Courier New', monospace;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .status-success {
+            color: #28a745;
+        }
+
+        .status-error {
+            color: #dc3545;
+        }
+
+        .buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #545b62;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .ads-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .ad-slot {
+            height: 200px;
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            position: relative;
+            background: #f8f9fa;
+        }
+
+        .logs {
+            background: #1e1e1e;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            padding: 20px;
+            border-radius: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+            word-wrap: break-word;
+        }
+
+        .log-timestamp {
+            color: #888;
+        }
+
+        .log-info {
+            color: #00bfff;
+        }
+
+        .log-success {
+            color: #00ff00;
+        }
+
+        .log-error {
+            color: #ff4444;
+        }
+
+        .log-warning {
+            color: #ffaa00;
+        }
+
+        .wallet-info {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .wallet-info h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+
+        .wallet-detail {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 10000;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Teste de Integração SDK + Extensão</h1>
+            <p>Demonstração da integração entre o SDK de anúncios e a extensão Stellar Wallet</p>
+        </div>
+
+        <!-- Status da Integração -->
+        <div class="status-panel">
+            <h3>📊 Status da Integração</h3>
+            <div class="status-item">
+                <span class="status-label">Extensão Stellar Wallet:</span>
+                <span id="extension-status" class="status-value">🔍 Verificando...</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Carteira Conectada:</span>
+                <span id="wallet-status" class="status-value">❌ Não conectada</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Saldo:</span>
+                <span id="balance-status" class="status-value">-- XLM</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">SDK Carregado:</span>
+                <span id="sdk-status" class="status-value">🔍 Verificando...</span>
+            </div>
+        </div>
+
+        <!-- Informações da Carteira -->
+        <div id="wallet-info" class="wallet-info" style="display: none;">
+            <h3>💳 Informações da Carteira</h3>
+            <div class="wallet-detail">
+                <span>Chave Pública:</span>
+                <span id="wallet-public-key">--</span>
+            </div>
+            <div class="wallet-detail">
+                <span>Saldo Atual:</span>
+                <span id="wallet-balance">-- XLM</span>
+            </div>
+            <div class="wallet-detail">
+                <span>Status:</span>
+                <span id="wallet-connection-status">Desconectada</span>
+            </div>
+        </div>
+
+        <!-- Botões de Controle -->
+        <div class="buttons">
+            <button id="connect-wallet" class="btn btn-primary">🔌 Conectar Carteira</button>
+            <button id="refresh-balance" class="btn btn-secondary" disabled>💰 Atualizar Saldo</button>
+            <button id="simulate-reward" class="btn btn-success" disabled>🎉 Simular Recompensa</button>
+            <button id="test-payment" class="btn btn-secondary" disabled>💸 Teste de Pagamento</button>
+            <button id="clear-logs" class="btn btn-secondary">🗑️ Limpar Logs</button>
+            <button id="reinit-sdk" class="btn btn-secondary">🔄 Reinicializar SDK</button>
+        </div>
+
+        <!-- Slots de Anúncios -->
+        <div class="ads-container">
+            <div id="stellar-ad-container" 
+                 class="ad-slot" 
+                 data-site-id="site1" 
+                 data-tags="tecnologia,programacao,blockchain">
+                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #666;">
+                    <div>📺 Slot de Anúncio 1</div>
+                    <small>site1 - tecnologia, programação, blockchain</small>
+                </div>
+            </div>
+            
+            <div id="stellar-ad-container-2" 
+                 class="ad-slot">
+                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #666;">
+                    <div>📺 Slot de Anúncio 2</div>
+                    <small>Será configurado via JavaScript</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Console de Logs -->
+        <div>
+            <h3>📜 Console de Logs</h3>
+            <div id="console-logs" class="logs">
+                <div class="log-entry">
+                    <span class="log-timestamp">[00:00:00]</span> 
+                    <span class="log-info">Sistema iniciado - aguardando extensão...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Incluir extensão simulada primeiro -->
+    <script src="extension-updated.js"></script>
+    
+    <!-- Incluir SDK -->
+    <script src="sdk.js"></script>
+
+    <!-- Script de controle da página -->
+    <script>
+        // Configurar segundo slot de anúncio via JavaScript
+        window.StellarAdsConfig = {
+            siteId: 'site2',
+            tags: ['financas', 'investimentos', 'stellar'],
+            containerId: 'stellar-ad-container-2'
+        };
+
+        // Sistema de logs
+        const logsContainer = document.getElementById('console-logs');
+        
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            logEntry.innerHTML = `
+                <span class="log-timestamp">[${timestamp}]</span> 
+                <span class="log-${type}">${message}</span>
+            `;
+            logsContainer.appendChild(logEntry);
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+
+        // Interceptar console.log para mostrar nos logs
+        const originalLog = console.log;
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const message = args.join(' ');
+            if (message.includes('[Stellar') || message.includes('[Extension]')) {
+                addLog(message, 'info');
+            }
+        };
+
+        const originalError = console.error;
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            const message = args.join(' ');
+            if (message.includes('[Stellar') || message.includes('[Extension]')) {
+                addLog(message, 'error');
+            }
+        };
+
+        // Atualizar status da interface
+        function updateStatus() {
+            // Verificar extensão
+            const extensionStatus = document.getElementById('extension-status');
+            if (window.stellarWallet) {
+                extensionStatus.textContent = '✅ Detectada';
+                extensionStatus.className = 'status-value status-success';
+            } else {
+                extensionStatus.textContent = '❌ Não encontrada';
+                extensionStatus.className = 'status-value status-error';
+            }
+
+            // Verificar SDK
+            const sdkStatus = document.getElementById('sdk-status');
+            if (window.StellarAdsSDK) {
+                sdkStatus.textContent = `✅ v${window.StellarAdsSDK.version}`;
+                sdkStatus.className = 'status-value status-success';
+            } else {
+                sdkStatus.textContent = '❌ Não carregado';
+                sdkStatus.className = 'status-value status-error';
+            }
+
+            // Verificar carteira
+            const walletStatus = document.getElementById('wallet-status');
+            const balanceStatus = document.getElementById('balance-status');
+            
+            if (window.StellarAdsSDK && window.StellarAdsSDK.getUserWallet()) {
+                const wallet = window.StellarAdsSDK.getUserWallet();
+                walletStatus.textContent = '✅ Conectada';
+                walletStatus.className = 'status-value status-success';
+                
+                const balance = window.StellarAdsSDK.getUserBalance();
+                balanceStatus.textContent = `${balance} XLM`;
+                balanceStatus.className = 'status-value status-success';
+
+                // Mostrar informações detalhadas da carteira
+                document.getElementById('wallet-info').style.display = 'block';
+                document.getElementById('wallet-public-key').textContent = wallet.publicKey;
+                document.getElementById('wallet-balance').textContent = `${balance} XLM`;
+                document.getElementById('wallet-connection-status').textContent = 'Conectada';
+
+                // Habilitar botões
+                document.getElementById('refresh-balance').disabled = false;
+                document.getElementById('simulate-reward').disabled = false;
+                document.getElementById('test-payment').disabled = false;
+            } else {
+                walletStatus.textContent = '❌ Não conectada';
+                walletStatus.className = 'status-value status-error';
+                balanceStatus.textContent = '-- XLM';
+                balanceStatus.className = 'status-value';
+                
+                document.getElementById('wallet-info').style.display = 'none';
+            }
+        }
+
+        // Event listeners para botões
+        document.getElementById('connect-wallet').addEventListener('click', async () => {
+            if (window.StellarAdsSDK) {
+                addLog('Tentando conectar carteira...', 'info');
+                const result = await window.StellarAdsSDK.connectWallet();
+                if (result) {
+                    addLog(`Carteira conectada: ${result.publicKey}`, 'success');
+                    updateStatus();
+                } else {
+                    addLog('Falha ao conectar carteira', 'error');
+                }
+            } else {
+                addLog('SDK não carregado', 'error');
+            }
+        });
+
+        document.getElementById('refresh-balance').addEventListener('click', async () => {
+            if (window.stellarWallet) {
+                try {
+                    addLog('Atualizando saldo...', 'info');
+                    const balance = await window.stellarWallet.getBalance();
+                    addLog(`Saldo atualizado: ${balance.native} XLM`, 'success');
+                    updateStatus();
+                } catch (error) {
+                    addLog(`Erro ao atualizar saldo: ${error.message}`, 'error');
+                }
+            }
+        });
+
+        document.getElementById('simulate-reward').addEventListener('click', () => {
+            const rewardAmount = '0.001';
+            const rewardData = {
+                amount: rewardAmount,
+                transactionId: 'sim_' + Math.random().toString(36).substr(2, 9),
+                type: 'impression',
+                timestamp: new Date().toISOString()
+            };
+
+            addLog(`Simulando recompensa de ${rewardAmount} XLM`, 'info');
+            
+            // Disparar evento de recompensa
+            window.dispatchEvent(new CustomEvent('stellarRewardReceived', {
+                detail: rewardData
+            }));
+
+            // Atualizar saldo local
+            if (window.StellarAdsSDK) {
+                window.StellarAdsSDK.userBalance = parseFloat(window.StellarAdsSDK.userBalance || 0) + parseFloat(rewardAmount);
+                updateStatus();
+            }
+        });
+
+        document.getElementById('test-payment').addEventListener('click', async () => {
+            if (window.stellarWallet) {
+                try {
+                    addLog('Testando pagamento de 0.001 XLM...', 'info');
+                    const result = await window.stellarWallet.sendPayment(
+                        'GCDZ4ZTAJDIQXF3FGPCBCJXN2X4DF7L4IVITMPPYFUZHVP6OX23ATAWZ',
+                        '0.001',
+                        'Teste de pagamento'
+                    );
+                    addLog(`Pagamento enviado: ${result.transactionHash}`, 'success');
+                    updateStatus();
+                } catch (error) {
+                    addLog(`Erro no pagamento: ${error.message}`, 'error');
+                }
+            }
+        });
+
+        document.getElementById('clear-logs').addEventListener('click', () => {
+            logsContainer.innerHTML = '<div class="log-entry"><span class="log-timestamp">[' + new Date().toLocaleTimeString() + ']</span> <span class="log-info">Logs limpos</span></div>';
+        });
+
+        document.getElementById('reinit-sdk').addEventListener('click', () => {
+            if (window.StellarAdsSDK) {
+                addLog('Reinicializando SDK...', 'info');
+                window.StellarAdsSDK.reinitialize();
+                setTimeout(updateStatus, 1000);
+            }
+        });
+
+        // Escutar eventos da carteira
+        window.addEventListener('stellarWalletReady', () => {
+            addLog('Extensão Stellar Wallet pronta!', 'success');
+            updateStatus();
+        });
+
+        window.addEventListener('stellarRewardReceived', (event) => {
+            addLog(`Recompensa recebida: ${event.detail.amount} XLM`, 'success');
+            
+            // Mostrar notificação
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.innerHTML = `🎉 Recompensa recebida: ${event.detail.amount} XLM`;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => notification.classList.add('show'), 100);
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => document.body.removeChild(notification), 300);
+            }, 3000);
+        });
+
+        // Atualizar status periodicamente
+        setInterval(updateStatus, 2000);
+        
+        // Primeira verificação
+        setTimeout(updateStatus, 1000);
+
+        addLog('Interface de teste carregada', 'success');
+    </script>
+</body>
+</html>

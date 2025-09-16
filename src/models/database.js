@@ -106,6 +106,36 @@ class DatabaseModel {
             )
         `);
 
+    // Nova tabela: carteiras de usuários registradas pela extensão
+    this.db.exec(`
+            CREATE TABLE IF NOT EXISTS user_wallets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                public_key TEXT UNIQUE NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+                total_earned REAL DEFAULT 0,
+                is_active BOOLEAN DEFAULT 1
+            )
+        `);
+
+    // Nova tabela: recompensas detalhadas por usuário (substituir a tabela antiga)
+    this.db.exec(`DROP TABLE IF EXISTS user_rewards`);
+    this.db.exec(`
+            CREATE TABLE user_rewards (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_public_key TEXT NOT NULL,
+                campaign_id TEXT NOT NULL,
+                site_id TEXT NOT NULL,
+                type TEXT NOT NULL, -- 'impression' ou 'click'
+                amount REAL NOT NULL,
+                transaction_id TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_public_key) REFERENCES user_wallets(public_key),
+                FOREIGN KEY (campaign_id) REFERENCES campaigns(id),
+                FOREIGN KEY (site_id) REFERENCES sites(id)
+            )
+        `);
+
     // Criar índices após criação das tabelas
     this.createIndexes();
   }
@@ -140,11 +170,28 @@ class DatabaseModel {
       this.db.exec(
         `CREATE INDEX IF NOT EXISTS idx_impressions_user_fingerprint ON impressions(user_fingerprint)`
       );
+
+      // Índices para novas tabelas de carteiras
       this.db.exec(
-        `CREATE INDEX IF NOT EXISTS idx_user_rewards_fingerprint ON user_rewards(user_fingerprint)`
+        `CREATE INDEX IF NOT EXISTS idx_user_wallets_public_key ON user_wallets(public_key)`
       );
       this.db.exec(
-        `CREATE INDEX IF NOT EXISTS idx_user_rewards_last_reward ON user_rewards(last_reward_at)`
+        `CREATE INDEX IF NOT EXISTS idx_user_wallets_last_seen ON user_wallets(last_seen)`
+      );
+      this.db.exec(
+        `CREATE INDEX IF NOT EXISTS idx_user_rewards_user_key ON user_rewards(user_public_key)`
+      );
+      this.db.exec(
+        `CREATE INDEX IF NOT EXISTS idx_user_rewards_campaign ON user_rewards(campaign_id)`
+      );
+      this.db.exec(
+        `CREATE INDEX IF NOT EXISTS idx_user_rewards_site ON user_rewards(site_id)`
+      );
+      this.db.exec(
+        `CREATE INDEX IF NOT EXISTS idx_user_rewards_type ON user_rewards(type)`
+      );
+      this.db.exec(
+        `CREATE INDEX IF NOT EXISTS idx_user_rewards_created_at ON user_rewards(created_at)`
       );
 
       console.log("✅ Índices criados com sucesso");
@@ -558,6 +605,11 @@ class DatabaseModel {
       },
       timeframe,
     };
+  }
+
+  // Método para compatibilidade com código async/await
+  async getConnection() {
+    return this.db;
   }
 }
 
