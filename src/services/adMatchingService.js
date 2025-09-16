@@ -10,7 +10,24 @@ class AdMatchingService {
   }
 
   /**
-   * Encontra o melhor anúncio para um site específico
+   * Encontra         console.log(
+          `💰 Usuário ${(userPublicKey || userFingerprint).substring(
+            0,
+            8
+          )}... ganhou ${impressionReward} XLM por visualização`
+        );
+
+        // Processar pagamento assíncrono (se Stellar estiver configurado)
+        setImmediate(() => {
+          this.processImpressionPayment(impressionData, context);
+        });
+      } else if (userPublicKey && !canReceiveRewards) {
+        console.log(
+          `⏰ Usuário ${userPublicKey.substring(
+            0,
+            8
+          )}... deve aguardar 6 horas para nova recompensa`
+        );ara um site específico
    * @param {string} siteId - ID do site solicitante
    * @param {string} algorithm - Algoritmo de matching a usar ('random', 'weighted', 'tagged')
    * @param {object} context - Contexto adicional (IP, user-agent, etc.)
@@ -252,16 +269,17 @@ class AdMatchingService {
     try {
       const { v4: uuidv4 } = require("uuid");
 
-      // Gerar fingerprint do usuário baseado em IP + User-Agent
-      const userFingerprint = this.generateUserFingerprint(context);
+      // Gerar fingerprint do usuário baseado em IP + User-Agent ou usar public key
+      const userPublicKey = context.walletPublicKey || null;
+      const userFingerprint =
+        userPublicKey || this.generateUserFingerprint(context);
 
       // Verificar se usuário pode receber recompensas (limite de 6 horas)
-      const canReceiveRewards = database.canUserReceiveRewards(
-        userFingerprint,
-        siteId
-      );
+      const canReceiveRewards = userPublicKey
+        ? database.canUserReceiveRewards(userPublicKey, siteId)
+        : false;
 
-      // Definir valor da recompensa por impressão (pode ser configurável)
+      // Definir valor da recompensa por impressão (apenas para usuários com carteira)
       const impressionReward = canReceiveRewards ? 0.001 : 0; // 0.001 XLM por impressão
 
       const impressionData = {
@@ -276,15 +294,18 @@ class AdMatchingService {
 
       database.recordImpression(impressionData);
 
-      // Se usuário pode receber recompensas, processar pagamento
-      if (canReceiveRewards && impressionReward > 0) {
-        // Atualizar registro de recompensas do usuário
-        database.updateUserRewards(
-          userFingerprint,
+      // Se há carteira e pode receber recompensas, registrar a recompensa
+      if (userPublicKey && canReceiveRewards && impressionReward > 0) {
+        // Registrar recompensa no novo sistema
+        database.recordUserReward(
+          userPublicKey,
+          campaignId,
           siteId,
-          impressionReward,
-          false
+          "impression",
+          impressionReward
         );
+
+        database.updateWalletStats(userPublicKey, impressionReward);
 
         console.log(
           `� Usuário ${userFingerprint.substring(

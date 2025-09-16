@@ -342,6 +342,33 @@ class DatabaseModel {
     return this.db.prepare("SELECT * FROM sites WHERE id = ?").get(siteId);
   }
 
+  createSite(siteData) {
+    // Verificar se já existe site com mesmo domínio
+    const existingSite = this.db
+      .prepare("SELECT * FROM sites WHERE domain = ?")
+      .get(siteData.domain);
+    
+    if (existingSite) {
+      throw new Error("Já existe um site cadastrado com este domínio");
+    }
+
+    const insertSite = this.db.prepare(`
+      INSERT INTO sites (id, name, domain, stellar_public_key, revenue_share, created_at)
+      VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `);
+
+    const result = insertSite.run(
+      siteData.id,
+      siteData.name,
+      siteData.domain,
+      siteData.stellarPublicKey || "", // Campo obrigatório, usar string vazia se não fornecido
+      siteData.revenueShare || 0.7
+    );
+
+    // Retornar os dados do site criado
+    return this.getSite(siteData.id);
+  }
+
   getActiveCampaigns() {
     return this.db
       .prepare(
@@ -413,86 +440,128 @@ class DatabaseModel {
 
   /**
    * Verifica se um usuário pode receber recompensas (limite de 6 horas)
+   * Agora usa public_key em vez de fingerprint
    */
-  canUserReceiveRewards(userFingerprint, siteId) {
+  canUserReceiveRewards(userPublicKey, siteId) {
+    if (!userPublicKey) return false; // Sem carteira, sem recompensas
+
     const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
 
-    const userReward = this.db
+    const recentReward = this.db
       .prepare(
         `
             SELECT * FROM user_rewards 
-            WHERE user_fingerprint = ? AND site_id = ?
-            AND last_reward_at > ?
+            WHERE user_public_key = ? AND site_id = ?
+            AND created_at > ?
+            ORDER BY created_at DESC
+            LIMIT 1
         `
       )
-      .get(userFingerprint, siteId, sixHoursAgo);
+      .get(userPublicKey, siteId, sixHoursAgo);
 
-    return !userReward; // Se não encontrou registro recente, pode receber recompensas
+    return !recentReward; // Se não encontrou recompensa recente, pode receber
   }
 
   /**
-   * Cria ou atualiza registro de recompensas do usuário
+   * Registra uma recompensa para usuário com carteira
    */
-  updateUserRewards(userFingerprint, siteId, earnedAmount, isClick = false) {
-    // Verificar se já existe registro
-    const existing = this.db
-      .prepare(
-        `
-            SELECT * FROM user_rewards 
-            WHERE user_fingerprint = ? AND site_id = ?
-        `
-      )
-      .get(userFingerprint, siteId);
+  recordUserReward(
+    userPublicKey,
+    campaignId,
+    siteId,
+    type,
+    amount,
+    transactionId = null
+  ) {
+    if (!userPublicKey) return false; // Sem carteira, não registra
 
-    if (existing) {
-      // Atualizar registro existente
-      const updateUser = this.db.prepare(`
-                UPDATE user_rewards 
-                SET last_reward_at = CURRENT_TIMESTAMP,
-                    total_impressions = total_impressions + ?,
-                    total_clicks = total_clicks + ?,
-                    total_earned_xlm = total_earned_xlm + ?
-                WHERE user_fingerprint = ? AND site_id = ?
-            `);
-
-      return updateUser.run(
-        isClick ? 0 : 1, // incrementa impressões se não for clique
-        isClick ? 1 : 0, // incrementa cliques se for clique
-        earnedAmount,
-        userFingerprint,
-        siteId
-      );
-    } else {
-      // Criar novo registro
-      const { v4: uuidv4 } = require("uuid");
-      const insertUser = this.db.prepare(`
-                INSERT INTO user_rewards (id, user_fingerprint, site_id, total_impressions, total_clicks, total_earned_xlm)
-                VALUES (?, ?, ?, ?, ?, ?)
-            `);
-
-      return insertUser.run(
-        uuidv4(),
-        userFingerprint,
-        siteId,
-        isClick ? 0 : 1,
-        isClick ? 1 : 0,
-        earnedAmount
-      );
+    try {
+      return this.db
+        .prepare(
+          `
+              INSERT INTO user_rewards (user_public_key, campaign_id, site_id, type, amount, transaction_id)
+              VALUES (?, ?, ?, ?, ?, ?)
+          `
+        )
+        .run(userPublicKey, campaignId, siteId, type, amount, transactionId);
+    } catch (error) {
+      console.error("Erro ao registrar recompensa:", error);
+      return false;
     }
   }
 
   /**
-   * Obtém estatísticas do usuário
+   * Atualiza as estatísticas de uma carteira de usuário
    */
-  getUserStats(userFingerprint, siteId) {
-    return this.db
-      .prepare(
-        `
-            SELECT * FROM user_rewards 
-            WHERE user_fingerprint = ? AND site_id = ?
-        `
-      )
-      .get(userFingerprint, siteId);
+  updateWalletStats(publicKey, earnedAmount) {
+    if (!publicKey) return false;
+
+    try {
+      // Primeiro, garantir que a carteira existe
+      this.registerWallet(publicKey);
+
+      return this.db
+        .prepare(
+          `
+              UPDATE user_wallets 
+              SET total_earned = total_earned + ?,
+                  last_seen = CURRENT_TIMESTAMP
+              WHERE public_key = ?
+          `
+        )
+        .run(earnedAmount, publicKey);
+    } catch (error) {
+      console.error("Erro ao atualizar estatísticas da carteira:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Obtém estatísticas de uma carteira
+   */
+  getWalletStats(publicKey) {
+    if (!publicKey) return null;
+
+    try {
+      return this.db
+        .prepare(
+          `
+              SELECT * FROM user_wallets 
+              WHERE public_key = ?
+          `
+        )
+        .get(publicKey);
+    } catch (error) {
+      console.error("Erro ao obter estatísticas da carteira:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Obtém recompensas de um usuário
+   */
+  getUserRewards(publicKey, siteId = null) {
+    if (!publicKey) return [];
+
+    try {
+      let query = `
+              SELECT * FROM user_rewards 
+              WHERE user_public_key = ?
+          `;
+      const params = [publicKey];
+
+      if (siteId) {
+        query += ` AND site_id = ?`;
+        params.push(siteId);
+      }
+
+      query += ` ORDER BY created_at DESC`;
+
+      return this.db.prepare(query).all(...params);
+    } catch (error) {
+      console.error("Erro ao obter recompensas do usuário:", error);
+      return [];
+    }
   }
 
   /**

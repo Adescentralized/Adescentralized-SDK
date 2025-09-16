@@ -330,11 +330,15 @@ router.post("/impression", async (req, res) => {
       userAgent: req.get("User-Agent"),
       referer: req.get("Referer"),
       timestamp: new Date().toISOString(),
-      userPublicKey,
+      walletPublicKey: userPublicKey, // Usar walletPublicKey em vez de userPublicKey
       hasWallet,
     };
 
-    console.log(`� Registrando impressão - Campanha: ${campaignId}, Site: ${siteId}, Usuário: ${userPublicKey ? 'Com carteira' : 'Sem carteira'}`);
+    console.log(
+      `� Registrando impressão - Campanha: ${campaignId}, Site: ${siteId}, Usuário: ${
+        userPublicKey ? "Com carteira" : "Sem carteira"
+      }`
+    );
 
     // Registrar impressão no banco de dados
     await adMatchingService.recordImpression(campaignId, siteId, context);
@@ -352,14 +356,16 @@ router.post("/impression", async (req, res) => {
           campaignId,
           siteId
         );
-        
+
         if (rewardResult.eligible) {
           response.userReward = {
             amount: rewardResult.amount,
             transactionId: rewardResult.transactionId,
-            type: 'impression'
+            type: "impression",
           };
-          console.log(`💰 Recompensa processada para usuário ${userPublicKey}: ${rewardResult.amount} XLM`);
+          console.log(
+            `💰 Recompensa processada para usuário ${userPublicKey}: ${rewardResult.amount} XLM`
+          );
         }
       } catch (rewardError) {
         console.error("Erro ao processar recompensa do usuário:", rewardError);
@@ -393,6 +399,77 @@ router.get("/sites", (req, res) => {
     });
   } catch (error) {
     console.error("Erro no endpoint /api/sites:", error);
+    res.status(500).json({
+      success: false,
+      error: "Erro interno do servidor",
+    });
+  }
+});
+
+/**
+ * POST /api/sites - Endpoint para cadastrar novo site
+ * Parâmetros: name (obrigatório), domain (obrigatório), revenueShare (opcional), stellarPublicKey (opcional)
+ */
+router.post("/sites", async (req, res) => {
+  try {
+    const { name, domain, revenueShare = 0.7, stellarPublicKey } = req.body;
+
+    // Validação de parâmetros obrigatórios
+    if (!name || !domain) {
+      return res.status(400).json({
+        success: false,
+        error: "Parâmetros name e domain são obrigatórios",
+      });
+    }
+
+    // Validar revenue share (deve estar entre 0 e 1)
+    if (revenueShare < 0 || revenueShare > 1) {
+      return res.status(400).json({
+        success: false,
+        error: "revenueShare deve estar entre 0 e 1 (exemplo: 0.7 para 70%)",
+      });
+    }
+
+    // Gerar ID único para o site
+    const siteId = `site_${uuidv4().replace(/-/g, '').substring(0, 16)}`;
+
+    const siteData = {
+      id: siteId,
+      name: name.trim(),
+      domain: domain.toLowerCase().trim(),
+      stellarPublicKey,
+      revenueShare
+    };
+
+    // Criar site usando método do database
+    const newSite = database.createSite(siteData);
+
+    console.log(`🌐 Novo site cadastrado: ${name} (${domain}) - ID: ${siteId}`);
+
+    res.status(201).json({
+      success: true,
+      site: {
+        id: newSite.id,
+        name: newSite.name,
+        domain: newSite.domain,
+        revenueShare: newSite.revenue_share,
+        stellarPublicKey: newSite.stellar_public_key || null,
+        createdAt: newSite.created_at
+      },
+      message: "Site cadastrado com sucesso",
+    });
+
+  } catch (error) {
+    console.error("Erro no endpoint POST /api/sites:", error);
+    
+    // Tratamento específico para erro de domínio duplicado
+    if (error.message.includes("Já existe um site")) {
+      return res.status(409).json({
+        success: false,
+        error: error.message,
+      });
+    }
+
     res.status(500).json({
       success: false,
       error: "Erro interno do servidor",
@@ -557,7 +634,7 @@ router.post("/user-wallet", async (req, res) => {
 
     // Registrar/atualizar carteira no banco de dados
     const db = await database.getConnection();
-    
+
     // Verificar se carteira já existe
     const existingWallet = await db.get(
       `SELECT * FROM user_wallets WHERE public_key = ?`,
@@ -643,7 +720,7 @@ async function processUserImpressionReward(userPublicKey, campaignId, siteId) {
   try {
     // Verificar elegibilidade do usuário para recompensa
     const db = await database.getConnection();
-    
+
     // Verificar última recompensa do usuário (limite de tempo)
     const lastReward = await db.get(
       `SELECT created_at FROM user_rewards 
@@ -656,9 +733,9 @@ async function processUserImpressionReward(userPublicKey, campaignId, siteId) {
     if (lastReward) {
       const lastRewardTime = new Date(lastReward.created_at);
       const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
-      
+
       if (lastRewardTime > tenMinutesAgo) {
-        return { eligible: false, reason: 'cooldown' };
+        return { eligible: false, reason: "cooldown" };
       }
     }
 
@@ -666,13 +743,12 @@ async function processUserImpressionReward(userPublicKey, campaignId, siteId) {
     const rewardAmount = 0.001; // 0.001 XLM por impressão
 
     // Buscar informações da campanha para pagamento
-    const campaign = await db.get(
-      `SELECT * FROM campaigns WHERE id = ?`,
-      [campaignId]
-    );
+    const campaign = await db.get(`SELECT * FROM campaigns WHERE id = ?`, [
+      campaignId,
+    ]);
 
-    if (!campaign || campaign.status !== 'active') {
-      return { eligible: false, reason: 'campaign_inactive' };
+    if (!campaign || campaign.status !== "active") {
+      return { eligible: false, reason: "campaign_inactive" };
     }
 
     // Processar pagamento via Stellar
@@ -693,22 +769,21 @@ async function processUserImpressionReward(userPublicKey, campaignId, siteId) {
           campaignId,
           siteId,
           rewardAmount,
-          paymentResult.transactionId
+          paymentResult.transactionId,
         ]
       );
 
       return {
         eligible: true,
         amount: rewardAmount,
-        transactionId: paymentResult.transactionId
+        transactionId: paymentResult.transactionId,
       };
     } else {
-      return { eligible: false, reason: 'payment_failed' };
+      return { eligible: false, reason: "payment_failed" };
     }
-
   } catch (error) {
-    console.error('Erro ao processar recompensa de impressão:', error);
-    return { eligible: false, reason: 'error' };
+    console.error("Erro ao processar recompensa de impressão:", error);
+    return { eligible: false, reason: "error" };
   }
 }
 
@@ -718,14 +793,14 @@ async function processUserImpressionReward(userPublicKey, campaignId, siteId) {
 async function getUserRewardsInfo(siteId, userPublicKey) {
   try {
     const db = await database.getConnection();
-    
+
     let canReceiveRewards = false;
     let nextRewardInMinutes = 0;
     let userStats = {
       total_impressions: 0,
       total_clicks: 0,
       total_earned_xlm: 0,
-      last_reward_at: null
+      last_reward_at: null,
     };
 
     if (userPublicKey) {
@@ -749,12 +824,16 @@ async function getUserRewardsInfo(siteId, userPublicKey) {
       if (userStats.last_reward_at) {
         const lastRewardTime = new Date(userStats.last_reward_at);
         const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
-        
+
         if (lastRewardTime <= tenMinutesAgo) {
           canReceiveRewards = true;
         } else {
-          const nextReward = new Date(lastRewardTime.getTime() + 10 * 60 * 1000);
-          nextRewardInMinutes = Math.ceil((nextReward - Date.now()) / (60 * 1000));
+          const nextReward = new Date(
+            lastRewardTime.getTime() + 10 * 60 * 1000
+          );
+          nextRewardInMinutes = Math.ceil(
+            (nextReward - Date.now()) / (60 * 1000)
+          );
         }
       } else {
         canReceiveRewards = true;
@@ -776,7 +855,7 @@ async function getUserRewardsInfo(siteId, userPublicKey) {
       },
     };
   } catch (error) {
-    console.error('Erro ao buscar informações de recompensas:', error);
+    console.error("Erro ao buscar informações de recompensas:", error);
     throw error;
   }
 }

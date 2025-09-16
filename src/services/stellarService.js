@@ -259,10 +259,14 @@ class StellarService {
   async sendPayment(destinationKey, amount, memo = "") {
     try {
       if (!this.initialized || !this.platformKeypair) {
-        throw new Error("Serviço Stellar não inicializado ou sem chave secreta");
+        throw new Error(
+          "Serviço Stellar não inicializado ou sem chave secreta"
+        );
       }
 
-      console.log(`💸 Enviando pagamento: ${amount} XLM para ${destinationKey}`);
+      console.log(
+        `💸 Enviando pagamento: ${amount} XLM para ${destinationKey}`
+      );
 
       // Verificar se a conta de destino existe
       try {
@@ -466,9 +470,11 @@ class StellarService {
    * @param {string} memo - Memo da transação
    * @returns {Promise<{success: boolean, transactionId?: string, error?: string}>}
    */
-  async sendPayment(destinationPublicKey, amount, memo = '') {
+  async sendPayment(destinationPublicKey, amount, memo = "") {
     try {
-      console.log(`💸 Enviando pagamento: ${amount} XLM para ${destinationPublicKey}`);
+      console.log(
+        `💸 Enviando pagamento: ${amount} XLM para ${destinationPublicKey}`
+      );
 
       // Carregar conta da plataforma
       const platformAccount = await this.server.loadAccount(
