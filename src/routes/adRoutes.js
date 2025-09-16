@@ -3,8 +3,578 @@ const { v4: uuidv4 } = require("uuid");
 const database = require("../models/database");
 const adMatchingService = require("../services/adMatchingService");
 const stellarService = require("../services/stellarService");
+const sorobanService = require("../services/sorobanService");
+const sorobanContractsService = require("../services/sorobanContractsService");
 
 const router = express.Router();
+
+// ============= CONTRATOS SOROBAN ENDPOINTS =============
+
+// ========== VERIFIER REGISTRY ENDPOINTS ==========
+
+/**
+ * POST /api/soroban/verifier-registry/init
+ * Inicializa o registry e define o owner
+ */
+router.post("/soroban/verifier-registry/init", async (req, res) => {
+  try {
+    const { ownerAddress } = req.body;
+
+    if (!ownerAddress) {
+      return res.status(400).json({
+        success: false,
+        error: "ownerAddress é obrigatório",
+      });
+    }
+
+    const result = await sorobanContractsService.initVerifierRegistry(ownerAddress);
+
+    if (!result.success) {
+      return res.status(500).json(result);
+    }
+
+    res.json({
+      success: true,
+      message: "Verifier Registry inicializado com sucesso",
+      data: result,
+    });
+  } catch (error) {
+    console.error("Erro no endpoint /api/soroban/verifier-registry/init:", error);
+    res.status(500).json({
+      success: false,
+      error: "Erro interno do servidor",
+    });
+  }
+});
+
+/**
+ * POST /api/soroban/verifier-registry/add-verifier
+ * Autoriza um endereço a atuar como verifier
+ */
+router.post("/soroban/verifier-registry/add-verifier", async (req, res) => {
+  try {
+    const { verifierAddress } = req.body;
+
+    if (!verifierAddress) {
+      return res.status(400).json({
+        success: false,
+        error: "verifierAddress é obrigatório",
+      });
+    }
+
+    const result = await sorobanContractsService.addVerifier(verifierAddress);
+
+    if (!result.success) {
+      return res.status(500).json(result);
+    }
+
+    res.json({
+      success: true,
+      message: "Verifier adicionado com sucesso",
+      data: result,
+    });
+  } catch (error) {
+    console.error("Erro no endpoint /api/soroban/verifier-registry/add-verifier:", error);
+    res.status(500).json({
+      success: false,
+      error: "Erro interno do servidor",
+    });
+  }
+});
+
+/**
+ * POST /api/soroban/verifier-registry/set-publisher-status
+ * Liga/Desliga um publisher na allow-list
+ */
+router.post("/soroban/verifier-registry/set-publisher-status", async (req, res) => {
+  try {
+    const { publisherAddress, allowed } = req.body;
+
+    if (!publisherAddress || typeof allowed !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        error: "publisherAddress e allowed (boolean) são obrigatórios",
+      });
+    }
+
+    const result = await sorobanContractsService.setPublisherStatus(publisherAddress, allowed);
+
+    if (!result.success) {
+      return res.status(500).json(result);
+    }
+
+    res.json({
+      success: true,
+      message: `Publisher ${allowed ? 'habilitado' : 'desabilitado'} com sucesso`,
+      data: result,
+    });
+  } catch (error) {
+    console.error("Erro no endpoint /api/soroban/verifier-registry/set-publisher-status:", error);
+    res.status(500).json({
+      success: false,
+      error: "Erro interno do servidor",
+    });
+  }
+});
+
+/**
+ * GET /api/soroban/verifier-registry/is-verifier
+ * Checa se um endereço é verifier autorizado
+ */
+router.get("/soroban/verifier-registry/is-verifier", async (req, res) => {
+  try {
+    const { verifierAddress } = req.query;
+
+    if (!verifierAddress) {
+      return res.status(400).json({
+        success: false,
+        error: "verifierAddress é obrigatório",
+      });
+    }
+
+    const result = await sorobanContractsService.isVerifier(verifierAddress);
+
+    if (!result.success) {
+      return res.status(500).json(result);
+    }
+
+    res.json({
+      success: true,
+      data: {
+        verifierAddress,
+        isVerifier: result.isVerifier,
+      },
+    });
+  } catch (error) {
+    console.error("Erro no endpoint /api/soroban/verifier-registry/is-verifier:", error);
+    res.status(500).json({
+      success: false,
+      error: "Erro interno do servidor",
+    });
+  }
+});
+
+/**
+ * GET /api/soroban/verifier-registry/is-publisher-allowed
+ * Checa se um publisher está permitido
+ */
+router.get("/soroban/verifier-registry/is-publisher-allowed", async (req, res) => {
+  try {
+    const { publisherAddress } = req.query;
+
+    if (!publisherAddress) {
+      return res.status(400).json({
+        success: false,
+        error: "publisherAddress é obrigatório",
+      });
+    }
+
+    const result = await sorobanContractsService.isPublisherAllowed(publisherAddress);
+
+    if (!result.success) {
+      return res.status(500).json(result);
+    }
+
+    res.json({
+      success: true,
+      data: {
+        publisherAddress,
+        isAllowed: result.isAllowed,
+      },
+    });
+  } catch (error) {
+    console.error("Erro no endpoint /api/soroban/verifier-registry/is-publisher-allowed:", error);
+    res.status(500).json({
+      success: false,
+      error: "Erro interno do servidor",
+    });
+  }
+});
+
+// ========== ADVAULT ENDPOINTS ==========
+
+/**
+ * POST /api/soroban/advault/init
+ * Configura o protocolo (token, registry, preço e splits)
+ */
+router.post("/soroban/advault/init", async (req, res) => {
+  try {
+    const {
+      adminAddress,
+      tokenAddress,
+      verifierRegistryAddress,
+      pricePerEvent,
+      splitPublisherBps,
+      splitViewerBps,
+      feeBps,
+    } = req.body;
+
+    // Validação básica
+    if (!adminAddress || !tokenAddress || !verifierRegistryAddress || 
+        !pricePerEvent || !splitPublisherBps || !splitViewerBps || !feeBps) {
+      return res.status(400).json({
+        success: false,
+        error: "Todos os parâmetros são obrigatórios",
+      });
+    }
+
+    const config = {
+      adminAddress,
+      tokenAddress,
+      verifierRegistryAddress,
+      pricePerEvent: sorobanContractsService.toTokenUnits(pricePerEvent),
+      splitPublisherBps,
+      splitViewerBps,
+      feeBps,
+    };
+
+    const result = await sorobanContractsService.initAdVault(config);
+
+    if (!result.success) {
+      return res.status(500).json(result);
+    }
+
+    res.json({
+      success: true,
+      message: "AdVault inicializado com sucesso",
+      data: result,
+    });
+  } catch (error) {
+    console.error("Erro no endpoint /api/soroban/advault/init:", error);
+    res.status(500).json({
+      success: false,
+      error: "Erro interno do servidor",
+    });
+  }
+});
+
+/**
+ * GET /api/soroban/advault/config
+ * Retorna a configuração atual
+ */
+router.get("/soroban/advault/config", async (req, res) => {
+  try {
+    const result = await sorobanContractsService.getAdVaultConfig();
+
+    if (!result.success) {
+      return res.status(500).json(result);
+    }
+
+    res.json({
+      success: true,
+      data: result.config,
+    });
+  } catch (error) {
+    console.error("Erro no endpoint /api/soroban/advault/config:", error);
+    res.status(500).json({
+      success: false,
+      error: "Erro interno do servidor",
+    });
+  }
+});
+
+/**
+ * POST /api/soroban/advault/create-campaign
+ * Cria campanha e já deposita orçamento inicial
+ */
+router.post("/soroban/advault/create-campaign", async (req, res) => {
+  try {
+    const { advertiserAddress, initialDeposit, advertiserSecretKey } = req.body;
+
+    if (!advertiserAddress || !initialDeposit || !advertiserSecretKey) {
+      return res.status(400).json({
+        success: false,
+        error: "advertiserAddress, initialDeposit e advertiserSecretKey são obrigatórios",
+      });
+    }
+
+    // Gerar ID único para a campanha
+    const campaignId = sorobanContractsService.generateCampaignId();
+
+    // Criar keypair do advertiser
+    const advertiserKeypair = sorobanService.server.Keypair.fromSecret(advertiserSecretKey);
+
+    const result = await sorobanContractsService.createCampaign(
+      campaignId,
+      advertiserAddress,
+      sorobanContractsService.toTokenUnits(initialDeposit),
+      advertiserKeypair
+    );
+
+    if (!result.success) {
+      return res.status(500).json(result);
+    }
+
+    res.json({
+      success: true,
+      message: "Campanha criada com sucesso",
+      data: {
+        campaignId,
+        ...result,
+      },
+    });
+  } catch (error) {
+    console.error("Erro no endpoint /api/soroban/advault/create-campaign:", error);
+    res.status(500).json({
+      success: false,
+      error: "Erro interno do servidor",
+    });
+  }
+});
+
+/**
+ * POST /api/soroban/advault/deposit
+ * Deposita mais orçamento numa campanha
+ */
+router.post("/soroban/advault/deposit", async (req, res) => {
+  try {
+    const { campaignId, fromAddress, amount, fromSecretKey } = req.body;
+
+    if (!campaignId || !fromAddress || !amount || !fromSecretKey) {
+      return res.status(400).json({
+        success: false,
+        error: "campaignId, fromAddress, amount e fromSecretKey são obrigatórios",
+      });
+    }
+
+    // Criar keypair do depositante
+    const fromKeypair = sorobanService.server.Keypair.fromSecret(fromSecretKey);
+
+    const result = await sorobanContractsService.depositToCampaign(
+      campaignId,
+      fromAddress,
+      sorobanContractsService.toTokenUnits(amount),
+      fromKeypair
+    );
+
+    if (!result.success) {
+      return res.status(500).json(result);
+    }
+
+    res.json({
+      success: true,
+      message: "Depósito realizado com sucesso",
+      data: result,
+    });
+  } catch (error) {
+    console.error("Erro no endpoint /api/soroban/advault/deposit:", error);
+    res.status(500).json({
+      success: false,
+      error: "Erro interno do servidor",
+    });
+  }
+});
+
+/**
+ * POST /api/soroban/advault/submit-event
+ * Registra um evento atestado por verifier e faz os pagamentos
+ */
+router.post("/soroban/advault/submit-event", async (req, res) => {
+  try {
+    const { campaignId, publisherAddress, viewerAddress, eventKind } = req.body;
+
+    if (!campaignId || !publisherAddress || !viewerAddress || !eventKind) {
+      return res.status(400).json({
+        success: false,
+        error: "campaignId, publisherAddress, viewerAddress e eventKind são obrigatórios",
+      });
+    }
+
+    // Criar attestation
+    const attestation = sorobanContractsService.createAttestation({
+      campaignId,
+      publisherAddress,
+      viewerAddress,
+      eventKind,
+    });
+
+    const result = await sorobanContractsService.submitEvent(attestation);
+
+    if (!result.success) {
+      return res.status(500).json(result);
+    }
+
+    res.json({
+      success: true,
+      message: "Evento registrado e pagamentos processados",
+      data: {
+        eventId: attestation.event_id,
+        attestation,
+        payments: result.payments,
+      },
+    });
+  } catch (error) {
+    console.error("Erro no endpoint /api/soroban/advault/submit-event:", error);
+    res.status(500).json({
+      success: false,
+      error: "Erro interno do servidor",
+    });
+  }
+});
+
+/**
+ * POST /api/soroban/advault/pause
+ * Pausa o protocolo
+ */
+router.post("/soroban/advault/pause", async (req, res) => {
+  try {
+    const result = await sorobanContractsService.pauseProtocol();
+
+    if (!result.success) {
+      return res.status(500).json(result);
+    }
+
+    res.json({
+      success: true,
+      message: "Protocolo pausado com sucesso",
+      data: result,
+    });
+  } catch (error) {
+    console.error("Erro no endpoint /api/soroban/advault/pause:", error);
+    res.status(500).json({
+      success: false,
+      error: "Erro interno do servidor",
+    });
+  }
+});
+
+/**
+ * POST /api/soroban/advault/unpause
+ * Despausa o protocolo
+ */
+router.post("/soroban/advault/unpause", async (req, res) => {
+  try {
+    const result = await sorobanContractsService.unpauseProtocol();
+
+    if (!result.success) {
+      return res.status(500).json(result);
+    }
+
+    res.json({
+      success: true,
+      message: "Protocolo despausado com sucesso",
+      data: result,
+    });
+  } catch (error) {
+    console.error("Erro no endpoint /api/soroban/advault/unpause:", error);
+    res.status(500).json({
+      success: false,
+      error: "Erro interno do servidor",
+    });
+  }
+});
+
+/**
+ * POST /api/soroban/advault/close-campaign
+ * Fecha uma campanha
+ */
+router.post("/soroban/advault/close-campaign", async (req, res) => {
+  try {
+    const { campaignId, reason } = req.body;
+
+    if (!campaignId || !reason) {
+      return res.status(400).json({
+        success: false,
+        error: "campaignId e reason são obrigatórios",
+      });
+    }
+
+    const result = await sorobanContractsService.closeCampaign(campaignId, reason);
+
+    if (!result.success) {
+      return res.status(500).json(result);
+    }
+
+    res.json({
+      success: true,
+      message: "Campanha fechada com sucesso",
+      data: result,
+    });
+  } catch (error) {
+    console.error("Erro no endpoint /api/soroban/advault/close-campaign:", error);
+    res.status(500).json({
+      success: false,
+      error: "Erro interno do servidor",
+    });
+  }
+});
+
+/**
+ * POST /api/soroban/advault/refund-unspent
+ * Reembolsa orçamento não gasto de uma campanha
+ */
+router.post("/soroban/advault/refund-unspent", async (req, res) => {
+  try {
+    const { campaignId, toAddress } = req.body;
+
+    if (!campaignId || !toAddress) {
+      return res.status(400).json({
+        success: false,
+        error: "campaignId e toAddress são obrigatórios",
+      });
+    }
+
+    const result = await sorobanContractsService.refundUnspent(campaignId, toAddress);
+
+    if (!result.success) {
+      return res.status(500).json(result);
+    }
+
+    res.json({
+      success: true,
+      message: "Reembolso realizado com sucesso",
+      data: result,
+    });
+  } catch (error) {
+    console.error("Erro no endpoint /api/soroban/advault/refund-unspent:", error);
+    res.status(500).json({
+      success: false,
+      error: "Erro interno do servidor",
+    });
+  }
+});
+
+// ========== TOKEN ENDPOINTS ==========
+
+/**
+ * POST /api/soroban/token/mint
+ * Mint tokens para um endereço
+ */
+router.post("/soroban/token/mint", async (req, res) => {
+  try {
+    const { toAddress, amount } = req.body;
+
+    if (!toAddress || !amount) {
+      return res.status(400).json({
+        success: false,
+        error: "toAddress e amount são obrigatórios",
+      });
+    }
+
+    const result = await sorobanContractsService.mintTokens(
+      toAddress,
+      sorobanContractsService.toTokenUnits(amount)
+    );
+
+    if (!result.success) {
+      return res.status(500).json(result);
+    }
+
+    res.json({
+      success: true,
+      message: "Tokens mintados com sucesso",
+      data: result,
+    });
+  } catch (error) {
+    console.error("Erro no endpoint /api/soroban/token/mint:", error);
+    res.status(500).json({
+      success: false,
+      error: "Erro interno do servidor",
+    });
+  }
+});
+
+// ============= ENDPOINTS EXISTENTES =============
 
 /**
  * GET /api/ad - Endpoint para servir anúncios
@@ -310,11 +880,11 @@ router.post("/validate-site", (req, res) => {
 
 /**
  * POST /api/impression - Endpoint para registrar impressões (visualizações)
- * Parâmetros: campaignId, siteId, userPublicKey (opcional), hasWallet (opcional)
+ * Parâmetros: campaignId, siteId, userPublicKey (opcional), publisherAddress (opcional)
  */
 router.post("/impression", async (req, res) => {
   try {
-    const { campaignId, siteId, userPublicKey, hasWallet } = req.body;
+    const { campaignId, siteId, userPublicKey, publisherAddress } = req.body;
 
     // Validação de parâmetros
     if (!campaignId || !siteId) {
@@ -330,17 +900,17 @@ router.post("/impression", async (req, res) => {
       userAgent: req.get("User-Agent"),
       referer: req.get("Referer"),
       timestamp: new Date().toISOString(),
-      walletPublicKey: userPublicKey, // Usar walletPublicKey em vez de userPublicKey
-      hasWallet,
+      walletPublicKey: userPublicKey,
+      publisherAddress,
     };
 
     console.log(
-      `� Registrando impressão - Campanha: ${campaignId}, Site: ${siteId}, Usuário: ${
+      `📊 Registrando impressão - Campanha: ${campaignId}, Site: ${siteId}, Usuário: ${
         userPublicKey ? "Com carteira" : "Sem carteira"
       }`
     );
 
-    // Registrar impressão no banco de dados
+    // Registrar impressão no banco de dados local
     await adMatchingService.recordImpression(campaignId, siteId, context);
 
     let response = {
@@ -348,8 +918,44 @@ router.post("/impression", async (req, res) => {
       message: "Impressão registrada com sucesso",
     };
 
-    // Se o usuário tem carteira, verificar elegibilidade para recompensa
-    if (userPublicKey && hasWallet) {
+    // Se temos carteira do usuário e endereço do publisher, processar via Soroban
+    if (userPublicKey && publisherAddress) {
+      try {
+        console.log(`🔗 Processando impressão via Soroban - Viewer: ${userPublicKey}, Publisher: ${publisherAddress}`);
+        
+        const attestation = sorobanContractsService.createAttestation({
+          campaignId,
+          publisherAddress,
+          viewerAddress: userPublicKey,
+          eventKind: "impression",
+        });
+
+        const eventResult = await sorobanContractsService.submitEvent(attestation);
+
+        if (eventResult.success) {
+          response.sorobanPayment = {
+            eventProcessed: true,
+            eventId: attestation.event_id,
+            payments: eventResult.payments,
+            viewerReward: sorobanContractsService.fromTokenUnits(eventResult.payments.viewer),
+            publisherReward: sorobanContractsService.fromTokenUnits(eventResult.payments.publisher),
+            protocolFee: sorobanContractsService.fromTokenUnits(eventResult.payments.fee),
+          };
+          
+          console.log(
+            `💰 Pagamentos Soroban processados - Viewer: ${response.sorobanPayment.viewerReward} ADVT, Publisher: ${response.sorobanPayment.publisherReward} ADVT`
+          );
+        } else {
+          console.warn("Falha ao processar evento no Soroban:", eventResult.error);
+          response.warning = "Impressão registrada, mas pagamento Soroban falhou";
+        }
+      } catch (sorobanError) {
+        console.error("Erro ao processar evento Soroban:", sorobanError);
+        response.warning = "Impressão registrada, mas erro no processamento Soroban";
+        // Continuar sem falhar a impressão
+      }
+    } else if (userPublicKey) {
+      // Fallback para o sistema legado se não tiver publisherAddress
       try {
         const rewardResult = await processUserImpressionReward(
           userPublicKey,
@@ -362,14 +968,14 @@ router.post("/impression", async (req, res) => {
             amount: rewardResult.amount,
             transactionId: rewardResult.transactionId,
             type: "impression",
+            system: "stellar_legacy",
           };
           console.log(
-            `💰 Recompensa processada para usuário ${userPublicKey}: ${rewardResult.amount} XLM`
+            `💰 Recompensa legada processada para usuário ${userPublicKey}: ${rewardResult.amount} XLM`
           );
         }
       } catch (rewardError) {
-        console.error("Erro ao processar recompensa do usuário:", rewardError);
-        // Não falhar a impressão por erro na recompensa
+        console.error("Erro ao processar recompensa legada:", rewardError);
       }
     }
 
@@ -857,6 +1463,146 @@ async function getUserRewardsInfo(siteId, userPublicKey) {
   } catch (error) {
     console.error("Erro ao buscar informações de recompensas:", error);
     throw error;
+  }
+}
+
+// ========== NOVOS ENDPOINTS ==========
+
+/**
+ * GET /api/click-soroban - Endpoint para rastrear cliques com processamento via Soroban
+ * Parâmetros: campaignId, siteId, userPublicKey, publisherAddress (obrigatórios)
+ */
+router.get("/click-soroban", async (req, res) => {
+  try {
+    const { campaignId, siteId, userPublicKey, publisherAddress } = req.query;
+
+    // Validação de parâmetros
+    if (!campaignId || !siteId || !userPublicKey || !publisherAddress) {
+      return res.status(400).json({
+        success: false,
+        error: "Parâmetros campaignId, siteId, userPublicKey e publisherAddress são obrigatórios",
+      });
+    }
+
+    console.log(
+      `👆 Clique Soroban registrado - Campanha: ${campaignId}, Site: ${siteId}, Viewer: ${userPublicKey}, Publisher: ${publisherAddress}`
+    );
+
+    // Buscar dados da campanha e do site
+    const campaign = database.getCampaign(campaignId);
+    const site = database.getSite(siteId);
+
+    if (!campaign) {
+      return res.status(404).json({
+        success: false,
+        error: "Campanha não encontrada",
+      });
+    }
+
+    if (!site) {
+      return res.status(404).json({
+        success: false,
+        error: "Site não encontrado",
+      });
+    }
+
+    // Extrair contexto da requisição
+    const context = {
+      ip: req.ip || req.connection.remoteAddress,
+      userAgent: req.get("User-Agent"),
+      referer: req.get("Referer"),
+      timestamp: new Date().toISOString(),
+      userPublicKey,
+      publisherAddress,
+    };
+
+    // RESPOSTA IMEDIATA: Redirecionar usuário para a URL de destino
+    res.redirect(302, campaign.target_url);
+
+    // PROCESSAMENTO ASSÍNCRONO: Via Soroban
+    setImmediate(async () => {
+      try {
+        await processClickSorobanAsync(campaign, site, context);
+      } catch (error) {
+        console.error("Erro no processamento Soroban do clique:", error);
+      }
+    });
+  } catch (error) {
+    console.error("Erro no endpoint /api/click-soroban:", error);
+
+    // Redirecionar mesmo em caso de erro
+    const defaultUrl = process.env.DEFAULT_CLICK_REDIRECT_URL || "https://example.com";
+    res.redirect(302, defaultUrl);
+  }
+});
+
+/**
+ * Função assíncrona para processar clique via Soroban
+ */
+async function processClickSorobanAsync(campaign, site, context) {
+  try {
+    const clickId = uuidv4();
+
+    // 1. Registrar clique no banco de dados local
+    const clickData = {
+      id: clickId,
+      campaignId: campaign.id,
+      siteId: site.id,
+      ipAddress: context.ip,
+      userAgent: context.userAgent,
+      paymentAmount: campaign.cost_per_click,
+      userPublicKey: context.userPublicKey,
+      publisherAddress: context.publisherAddress,
+      system: "soroban",
+    };
+
+    database.recordClick(clickData);
+    console.log(`💾 Clique Soroban registrado no banco: ${clickId}`);
+
+    // 2. Processar via contratos Soroban
+    console.log(`🔗 Processando clique via Soroban - Viewer: ${context.userPublicKey}, Publisher: ${context.publisherAddress}`);
+    
+    const attestation = sorobanContractsService.createAttestation({
+      campaignId: campaign.id,
+      publisherAddress: context.publisherAddress,
+      viewerAddress: context.userPublicKey,
+      eventKind: "click",
+    });
+
+    const eventResult = await sorobanContractsService.submitEvent(attestation);
+
+    if (eventResult.success) {
+      const { payments } = eventResult;
+      
+      // 3. Atualizar banco com resultados do Soroban
+      database.updateClickPaymentStatus(
+        clickId,
+        attestation.event_id, // Usar event_id como referência da transação
+        "completed"
+      );
+
+      // Atualizar gastos da campanha (converter de token units para valor)
+      const totalCost = sorobanContractsService.fromTokenUnits(
+        payments.publisher + payments.viewer + payments.fee
+      );
+      database.updateCampaignSpent(campaign.id, totalCost);
+
+      console.log(
+        `💰 Clique Soroban processado com sucesso - Event: ${attestation.event_id}, ` +
+        `Publisher: ${sorobanContractsService.fromTokenUnits(payments.publisher)} ADVT, ` +
+        `Viewer: ${sorobanContractsService.fromTokenUnits(payments.viewer)} ADVT, ` +
+        `Fee: ${sorobanContractsService.fromTokenUnits(payments.fee)} ADVT`
+      );
+
+      console.log(`✅ Total gasto na campanha atualizado: ${totalCost} ADVT`);
+    } else {
+      console.error(`❌ Falha ao processar clique Soroban: ${eventResult.error}`);
+      
+      // Marcar como falhado no banco
+      database.updateClickPaymentStatus(clickId, null, "failed");
+    }
+  } catch (error) {
+    console.error("Erro no processamento assíncrono do clique Soroban:", error);
   }
 }
 

@@ -7,6 +7,8 @@ require("dotenv").config();
 
 const adRoutes = require("./src/routes/adRoutes");
 const database = require("./src/models/database");
+const stellarService = require("./src/services/stellarService");
+const sorobanContractsService = require("./src/services/sorobanContractsService");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -134,7 +136,6 @@ async function startServer() {
 
     // Inicializar o serviço Stellar
     try {
-      const stellarService = require("./src/services/stellarService");
       await stellarService.initialize();
       console.log("✅ Serviço Stellar inicializado");
     } catch (error) {
@@ -143,6 +144,18 @@ async function startServer() {
         error.message
       );
       console.warn("⚠️  Pagamentos automáticos estarão desabilitados");
+    }
+
+    // Inicializar serviço de contratos Soroban
+    try {
+      await sorobanContractsService.initialize();
+      console.log("✅ Serviço de contratos Soroban inicializado");
+    } catch (error) {
+      console.warn(
+        "⚠️  Serviço Soroban não pôde ser inicializado:",
+        error.message
+      );
+      console.warn("⚠️  Pagamentos via contratos Soroban estarão desabilitados");
     }
 
     // Iniciar o servidor
@@ -154,8 +167,13 @@ async function startServer() {
       console.log(`📦 SDK disponível em: http://localhost:${PORT}/sdk.js`);
       console.log(`🎯 Endpoint de anúncios: http://localhost:${PORT}/api/ad`);
       console.log(`👆 Endpoint de cliques: http://localhost:${PORT}/api/click`);
+      console.log(`🔗 Endpoint de cliques Soroban: http://localhost:${PORT}/api/click-soroban`);
+      console.log(`📝 Endpoint de impressões: http://localhost:${PORT}/api/impression`);
       console.log(
         `💎 Demo de recompensas: http://localhost:${PORT}/rewards-demo.html`
+      );
+      console.log(
+        `🔗 Demo Soroban: http://localhost:${PORT}/soroban-demo.html`
       );
     });
   } catch (error) {
