@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste SDK - Nova Abordagem da Extensão</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+        }
+        
+        h1, h2 {
+            color: #4a5568;
+            margin-bottom: 20px;
+        }
+        
+        h1 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 30px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .status-card {
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 5px solid;
+        }
+        
+        .status-success {
+            background-color: #f0fff4;
+            border-color: #48bb78;
+            color: #22543d;
+        }
+        
+        .status-error {
+            background-color: #fed7d7;
+            border-color: #f56565;
+            color: #742a2a;
+        }
+        
+        .status-info {
+            background-color: #ebf8ff;
+            border-color: #4299e1;
+            color: #2a4365;
+        }
+        
+        .wallet-info {
+            background: linear-gradient(135deg, #f7fafc, #edf2f7);
+            padding: 25px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        
+        .wallet-info h3 {
+            color: #2d3748;
+            margin-bottom: 15px;
+        }
+        
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .info-row:last-child {
+            border-bottom: none;
+        }
+        
+        .info-label {
+            font-weight: 600;
+            color: #4a5568;
+        }
+        
+        .info-value {
+            font-family: 'Courier New', monospace;
+            color: #2d3748;
+            word-break: break-all;
+        }
+        
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        button:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        button.secondary {
+            background: linear-gradient(135deg, #718096, #4a5568);
+        }
+        
+        .logs {
+            background: #1a202c;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            margin-top: 20px;
+        }
+        
+        .log-entry {
+            margin-bottom: 5px;
+        }
+        
+        .log-timestamp {
+            color: #a0aec0;
+        }
+        
+        .log-success {
+            color: #68d391;
+        }
+        
+        .log-error {
+            color: #fc8181;
+        }
+        
+        .log-info {
+            color: #63b3ed;
+        }
+        
+        .ad-container {
+            border: 2px dashed #e2e8f0;
+            padding: 20px;
+            text-align: center;
+            border-radius: 10px;
+            background: #f7fafc;
+            margin: 20px 0;
+        }
+        
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .metric {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .metric-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+            display: block;
+        }
+        
+        .metric-label {
+            color: #718096;
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 SDK - Nova Abordagem da Extensão</h1>
+        
+        <div class="status-grid">
+            <div id="extension-status" class="status-card status-info">
+                <strong>Status da Extensão:</strong><br>
+                <span id="extension-text">Verificando...</span>
+            </div>
+            
+            <div id="connection-status" class="status-card status-info">
+                <strong>Status da Conexão:</strong><br>
+                <span id="connection-text">Não conectado</span>
+            </div>
+            
+            <div id="sdk-status" class="status-card status-info">
+                <strong>Status do SDK:</strong><br>
+                <span id="sdk-text">Carregando...</span>
+            </div>
+        </div>
+        
+        <div id="wallet-info" class="wallet-info" style="display: none;">
+            <h3>📱 Informações da Carteira</h3>
+            <div class="info-row">
+                <span class="info-label">Chave Pública:</span>
+                <span class="info-value" id="public-key">--</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Email:</span>
+                <span class="info-value" id="email">--</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Nome:</span>
+                <span class="info-value" id="name">--</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Saldo:</span>
+                <span class="info-value" id="balance">-- XLM</span>
+            </div>
+        </div>
+        
+        <div class="button-group">
+            <button id="connect-btn">🔌 Conectar Carteira</button>
+            <button id="balance-btn" disabled>💰 Obter Saldo</button>
+            <button id="test-reward-btn" disabled>🎁 Simular Recompensa</button>
+            <button id="clear-logs-btn" class="secondary">🧹 Limpar Logs</button>
+        </div>
+        
+        <div class="metrics">
+            <div class="metric">
+                <span class="metric-value" id="total-rewards">0</span>
+                <div class="metric-label">Recompensas Recebidas</div>
+            </div>
+            <div class="metric">
+                <span class="metric-value" id="total-xlm">0.00</span>
+                <div class="metric-label">Total XLM</div>
+            </div>
+            <div class="metric">
+                <span class="metric-value" id="connection-time">--</span>
+                <div class="metric-label">Tempo Conectado</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>📺 Área de Anúncios</h2>
+        
+        <!-- Container para anúncios do SDK -->
+        <div id="stellar-ad-container" 
+             data-site-id="site-teste-nova-extensao" 
+             data-tags="tecnologia,blockchain,stellar"
+             class="ad-container">
+            <p>🔄 Carregando anúncios...</p>
+        </div>
+    </div>
+    
+    <div class="container">
+        <h2>📋 Logs do Sistema</h2>
+        <div id="logs" class="logs"></div>
+    </div>
+
+    <!-- Carregar a simulação da nova extensão -->
+    <script src="extension-nova-abordagem.js"></script>
+    
+    <!-- Carregar o SDK atualizado -->
+    <script src="sdk.js"></script>
+
+    <script>
+        const logsContainer = document.getElementById('logs');
+        let connectionStartTime = null;
+        let totalRewards = 0;
+        let totalXLM = 0;
+        
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logDiv = document.createElement('div');
+            logDiv.className = 'log-entry';
+            
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'log-timestamp';
+            timeSpan.textContent = `[${timestamp}] `;
+            
+            const typeSpan = document.createElement('span');
+            typeSpan.className = `log-${type}`;
+            typeSpan.textContent = `${type.toUpperCase()}: ${message}`;
+            
+            logDiv.appendChild(timeSpan);
+            logDiv.appendChild(typeSpan);
+            logsContainer.appendChild(logDiv);
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+        
+        function updateConnectionTime() {
+            if (connectionStartTime) {
+                const elapsed = Math.floor((Date.now() - connectionStartTime) / 1000);
+                const minutes = Math.floor(elapsed / 60);
+                const seconds = elapsed % 60;
+                document.getElementById('connection-time').textContent = 
+                    `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            }
+        }
+        
+        function updateStatus() {
+            const extensionStatus = document.getElementById('extension-status');
+            const connectionStatus = document.getElementById('connection-status');
+            const sdkStatus = document.getElementById('sdk-status');
+            
+            // Status da extensão
+            if (window.isStellarWalletInstalled) {
+                extensionStatus.className = 'status-card status-success';
+                document.getElementById('extension-text').textContent = 'Extensão detectada e ativa!';
+            } else {
+                extensionStatus.className = 'status-card status-error';
+                document.getElementById('extension-text').textContent = 'Extensão não encontrada';
+            }
+            
+            // Status da conexão
+            if (window.StellarAdsSDK?.userWallet?.connected) {
+                connectionStatus.className = 'status-card status-success';
+                document.getElementById('connection-text').textContent = 'Carteira conectada';
+                document.getElementById('balance-btn').disabled = false;
+                document.getElementById('test-reward-btn').disabled = false;
+                
+                if (!connectionStartTime) {
+                    connectionStartTime = Date.now();
+                }
+            } else {
+                connectionStatus.className = 'status-card status-info';
+                document.getElementById('connection-text').textContent = 'Carteira não conectada';
+                connectionStartTime = null;
+            }
+            
+            // Status do SDK
+            if (window.StellarAdsSDK) {
+                sdkStatus.className = 'status-card status-success';
+                document.getElementById('sdk-text').textContent = 'SDK carregado e operacional';
+            } else {
+                sdkStatus.className = 'status-card status-error';
+                document.getElementById('sdk-text').textContent = 'Erro no carregamento do SDK';
+            }
+        }
+        
+        // Event listeners para botões
+        document.getElementById('connect-btn').addEventListener('click', async () => {
+            addLog('Tentando conectar carteira...', 'info');
+            try {
+                const account = await window.StellarAdsSDK.connectWallet();
+                
+                document.getElementById('wallet-info').style.display = 'block';
+                document.getElementById('public-key').textContent = account.publicKey;
+                document.getElementById('email').textContent = account.email || '--';
+                document.getElementById('name').textContent = account.name || '--';
+                
+                addLog(`Carteira conectada: ${account.publicKey}`, 'success');
+                updateStatus();
+            } catch (error) {
+                addLog(`Erro ao conectar: ${error.message}`, 'error');
+            }
+        });
+        
+        document.getElementById('balance-btn').addEventListener('click', async () => {
+            addLog('Obtendo saldo da carteira...', 'info');
+            try {
+                const balance = await window.stellarWalletInterface.getBalance();
+                const nativeBalance = balance.native || balance || '0';
+                document.getElementById('balance').textContent = `${nativeBalance} XLM`;
+                addLog(`Saldo atualizado: ${nativeBalance} XLM`, 'success');
+            } catch (error) {
+                addLog(`Erro ao obter saldo: ${error.message}`, 'error');
+            }
+        });
+        
+        document.getElementById('test-reward-btn').addEventListener('click', async () => {
+            addLog('Simulando recebimento de recompensa...', 'info');
+            
+            // Simular clique em anúncio para gerar recompensa
+            const rewardAmount = (Math.random() * 0.1 + 0.001).toFixed(6);
+            
+            try {
+                // Disparar evento de recompensa
+                const rewardEvent = new CustomEvent('stellarRewardReceived', {
+                    detail: {
+                        amount: rewardAmount,
+                        transactionId: 'test_' + Date.now(),
+                        type: 'ad_view',
+                        timestamp: Date.now()
+                    }
+                });
+                window.dispatchEvent(rewardEvent);
+                
+                totalRewards++;
+                totalXLM += parseFloat(rewardAmount);
+                
+                document.getElementById('total-rewards').textContent = totalRewards;
+                document.getElementById('total-xlm').textContent = totalXLM.toFixed(6);
+                
+                addLog(`Recompensa simulada: ${rewardAmount} XLM`, 'success');
+                
+                // Atualizar saldo após alguns segundos
+                setTimeout(async () => {
+                    try {
+                        const balance = await window.stellarWalletInterface.getBalance();
+                        const nativeBalance = balance.native || balance || '0';
+                        document.getElementById('balance').textContent = `${nativeBalance} XLM`;
+                        addLog('Saldo atualizado após recompensa', 'info');
+                    } catch (error) {
+                        addLog(`Erro ao atualizar saldo: ${error.message}`, 'error');
+                    }
+                }, 2000);
+                
+            } catch (error) {
+                addLog(`Erro na simulação: ${error.message}`, 'error');
+            }
+        });
+        
+        document.getElementById('clear-logs-btn').addEventListener('click', () => {
+            logsContainer.innerHTML = '';
+            addLog('Logs limpos', 'info');
+        });
+        
+        // Event listeners para eventos da extensão
+        window.addEventListener('stellarWalletInstalled', (event) => {
+            addLog(`Extensão instalada detectada: v${event.detail.version}`, 'success');
+            updateStatus();
+        });
+        
+        window.addEventListener('stellarWalletReady', (event) => {
+            addLog('Extensão pronta para uso', 'success');
+            updateStatus();
+        });
+        
+        window.addEventListener('stellarRewardReceived', (event) => {
+            addLog(`Recompensa recebida: ${event.detail.amount} XLM (${event.detail.type})`, 'success');
+        });
+        
+        // Atualizar tempo de conexão a cada segundo
+        setInterval(updateConnectionTime, 1000);
+        
+        // Verificação inicial de status
+        addLog('Página carregada, verificando sistemas...', 'info');
+        
+        setTimeout(() => {
+            updateStatus();
+            
+            // Tentar conexão automática se extensão disponível
+            if (window.isStellarWalletInstalled && !window.StellarAdsSDK?.userWallet?.connected) {
+                addLog('Tentando conexão automática...', 'info');
+                document.getElementById('connect-btn').click();
+            }
+        }, 2000);
+    </script>
+</body>
+</html>

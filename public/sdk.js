@@ -45,6 +45,134 @@
   window.StellarAdsSDK = window.StellarAdsSDK || {};
 
   /**
+   * Nova classe para interface com a extensão Stellar usando postMessage
+   */
+  class StellarWalletInterface {
+    constructor() {
+      this.isConnected = false;
+      this.currentAccount = null;
+      this.debug = CONFIG.DEBUG;
+      
+      if (this.debug) {
+        console.log('[StellarSDK] StellarWalletInterface criada');
+      }
+    }
+
+    async connect() {
+      return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Connection timeout - extension not responding'));
+        }, 10000);
+
+        const requestId = Date.now();
+        window.postMessage({
+          type: 'STELLAR_WALLET_REQUEST',
+          method: 'connect',
+          id: requestId
+        }, '*');
+
+        const handler = (event) => {
+          if (event.data.type === 'STELLAR_WALLET_RESPONSE' && 
+              event.data.method === 'connect' && 
+              event.data.id === requestId) {
+            clearTimeout(timeout);
+            window.removeEventListener('message', handler);
+            
+            if (event.data.success) {
+              this.isConnected = true;
+              this.currentAccount = event.data.data.publicKey;
+              
+              if (this.debug) {
+                console.log('[StellarSDK] Carteira conectada:', event.data.data);
+              }
+              
+              resolve(event.data.data);
+            } else {
+              reject(new Error(event.data.error));
+            }
+          }
+        };
+
+        window.addEventListener('message', handler);
+      });
+    }
+
+    async getBalance() {
+      return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Balance request timeout'));
+        }, 10000);
+
+        const requestId = Date.now();
+        window.postMessage({
+          type: 'STELLAR_WALLET_REQUEST',
+          method: 'getBalance',
+          id: requestId
+        }, '*');
+
+        const handler = (event) => {
+          if (event.data.type === 'STELLAR_WALLET_RESPONSE' && 
+              event.data.method === 'getBalance' && 
+              event.data.id === requestId) {
+            clearTimeout(timeout);
+            window.removeEventListener('message', handler);
+            
+            if (event.data.success) {
+              const balanceData = event.data.data?.balance || event.data.data;
+              resolve(balanceData);
+            } else {
+              reject(new Error(event.data.error));
+            }
+          }
+        };
+
+        window.addEventListener('message', handler);
+      });
+    }
+
+    async sendPayment(destination, amount, memo) {
+      return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Payment request timeout'));
+        }, 30000);
+
+        const requestId = Date.now();
+        window.postMessage({
+          type: 'STELLAR_WALLET_REQUEST',
+          method: 'sendPayment',
+          data: { destination, amount, memo },
+          id: requestId
+        }, '*');
+
+        const handler = (event) => {
+          if (event.data.type === 'STELLAR_WALLET_RESPONSE' && 
+              event.data.method === 'sendPayment' && 
+              event.data.id === requestId) {
+            clearTimeout(timeout);
+            window.removeEventListener('message', handler);
+            
+            if (event.data.success) {
+              resolve(event.data.data);
+            } else {
+              reject(new Error(event.data.error));
+            }
+          }
+        };
+
+        window.addEventListener('message', handler);
+      });
+    }
+
+    isWalletConnected() {
+      return this.isConnected && this.currentAccount;
+    }
+
+    getCurrentAccount() {
+      return this.currentAccount;
+    }
+  }
+
+  /**
    * Função principal de inicialização
    */
   function initializeStellarAds() {
@@ -90,13 +218,18 @@
     try {
       log("Verificando extensão Stellar Wallet...");
 
-      // Verifica se a extensão injetou o objeto stellarWallet
-      if (window.stellarWallet) {
+      // Verifica se a extensão está disponível usando a nova detecção
+      if (window.isStellarWalletInstalled) {
         log("🔌 Extensão Stellar Wallet encontrada!");
         
         try {
+          // Criar interface se não existir
+          if (!window.stellarWalletInterface) {
+            window.stellarWalletInterface = new StellarWalletInterface();
+          }
+          
           // Conectar com a carteira
-          const account = await window.stellarWallet.connect();
+          const account = await window.stellarWalletInterface.connect();
           log("💳 Conectado à carteira:", {
             publicKey: account.publicKey,
             extensionDetected: true
@@ -105,7 +238,9 @@
           // Salvar informações da carteira
           window.StellarAdsSDK.userWallet = {
             publicKey: account.publicKey,
-            connected: true
+            connected: true,
+            email: account.email,
+            name: account.name
           };
           
           // Verificar saldo da carteira
@@ -144,10 +279,11 @@
     try {
       log("🔍 Verificando saldo da carteira via extensão...");
       
-      if (window.stellarWallet) {
-        const balance = await window.stellarWallet.getBalance();
-        window.StellarAdsSDK.userBalance = parseFloat(balance.native);
-        log("💰 Saldo do usuário:", balance.native, "XLM");
+      if (window.stellarWalletInterface) {
+        const balance = await window.stellarWalletInterface.getBalance();
+        const nativeBalance = balance.native || balance || '0';
+        window.StellarAdsSDK.userBalance = parseFloat(nativeBalance);
+        log("💰 Saldo do usuário:", nativeBalance, "XLM");
       }
     } catch (error) {
       log("Erro ao verificar saldo via extensão:", error);
@@ -628,7 +764,7 @@
       }
 
       // Atualizar saldo via extensão após receber recompensa
-      if (window.stellarWallet) {
+      if (window.stellarWalletInterface) {
         try {
           // Aguardar alguns segundos para a transação ser processada
           setTimeout(async () => {
@@ -640,7 +776,7 @@
       }
 
       // Disparar evento customizado para a extensão escutar
-      if (window.stellarWallet) {
+      if (window.stellarWalletInterface || window.isStellarWalletInstalled) {
         try {
           window.dispatchEvent(new CustomEvent('stellarRewardReceived', {
             detail: {
@@ -961,12 +1097,19 @@
     
     // Funções públicas para interação com a extensão
     connectWallet: async function() {
-      if (window.stellarWallet) {
+      if (window.isStellarWalletInstalled) {
         try {
-          const account = await window.stellarWallet.connect();
+          // Criar interface se não existir
+          if (!window.stellarWalletInterface) {
+            window.stellarWalletInterface = new StellarWalletInterface();
+          }
+          
+          const account = await window.stellarWalletInterface.connect();
           this.userWallet = {
             publicKey: account.publicKey,
-            connected: true
+            connected: true,
+            email: account.email,
+            name: account.name
           };
           await checkUserBalanceFromExtension();
           log("💳 Carteira conectada:", account.publicKey);
@@ -991,7 +1134,7 @@
     
     // Verificar se extensão está disponível
     isWalletAvailable: function() {
-      return !!window.stellarWallet;
+      return !!window.isStellarWalletInstalled;
     },
     
     // Forçar reconexão com a carteira
@@ -1003,13 +1146,27 @@
     // Callback para quando a extensão é carregada
     onWalletReady: function(callback) {
       if (this.isWalletAvailable()) {
-        callback(window.stellarWallet);
+        if (!window.stellarWalletInterface) {
+          window.stellarWalletInterface = new StellarWalletInterface();
+        }
+        callback(window.stellarWalletInterface);
       } else {
-        // Aguardar extensão ser carregada
+        // Aguardar extensão ser carregada via evento
+        window.addEventListener('stellarWalletInstalled', () => {
+          if (!window.stellarWalletInterface) {
+            window.stellarWalletInterface = new StellarWalletInterface();
+          }
+          callback(window.stellarWalletInterface);
+        });
+        
+        // Fallback: verificar periodicamente (compatibilidade)
         const checkInterval = setInterval(() => {
           if (this.isWalletAvailable()) {
             clearInterval(checkInterval);
-            callback(window.stellarWallet);
+            if (!window.stellarWalletInterface) {
+              window.stellarWalletInterface = new StellarWalletInterface();
+            }
+            callback(window.stellarWalletInterface);
           }
         }, 1000);
         
@@ -1020,4 +1177,53 @@
       }
     }
   };
+
+  // Event listeners para os novos eventos da extensão
+  window.addEventListener('stellarWalletInstalled', (event) => {
+    if (CONFIG.DEBUG) {
+      console.log('[StellarSDK] Evento stellarWalletInstalled recebido!', event.detail);
+    }
+    
+    // Criar interface automaticamente
+    if (!window.stellarWalletInterface) {
+      window.stellarWalletInterface = new StellarWalletInterface();
+    }
+    
+    // Tentar conectar automaticamente se ainda não conectou
+    if (!window.StellarAdsSDK.userWallet?.connected) {
+      setTimeout(async () => {
+        try {
+          await checkUserWallet();
+        } catch (error) {
+          console.log('[StellarSDK] Erro na conexão automática:', error);
+        }
+      }, 1000);
+    }
+  });
+
+  window.addEventListener('stellarWalletReady', (event) => {
+    if (CONFIG.DEBUG) {
+      console.log('[StellarSDK] Evento stellarWalletReady recebido!', event.detail);
+    }
+    
+    // Verificar se precisa inicializar
+    if (!window.stellarWalletInterface) {
+      window.stellarWalletInterface = new StellarWalletInterface();
+    }
+  });
+
+  // Event listener para mensagens da extensão (compatibilidade adicional)
+  window.addEventListener('message', (event) => {
+    // Processar mensagens relacionadas ao SDK se necessário
+    if (event.data.type === 'STELLAR_WALLET_SDK_UPDATE') {
+      if (CONFIG.DEBUG) {
+        console.log('[StellarSDK] Mensagem da extensão:', event.data);
+      }
+      
+      // Atualizar saldo se informado
+      if (event.data.balance) {
+        window.StellarAdsSDK.userBalance = parseFloat(event.data.balance);
+      }
+    }
+  });
 })();
